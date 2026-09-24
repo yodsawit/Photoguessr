@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm test*)",
+      "Bash(npm install *)",
+      "Bash(npx vitest*)",
+      "Bash(npx tsc*)",
+      "Bash(npx vite*)",
+      "WebFetch(domain:21st.dev)",
+      "WebFetch(domain:godly.design)",
+      "WebFetch(domain:ui.aceternity.com)",
+      "WebFetch(domain:uiverse.io)",
+      "WebFetch(domain:reactbits.dev)",
+      "WebFetch(domain:nominatim.openstreetmap.org)"
+    ]
+  }
+}
