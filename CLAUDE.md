@@ -28,17 +28,21 @@ GeoGuessr-style browser game played on private, auto-expiring pools of the owner
 ## Architecture (v2: private expiring pools)
 - **Render** runs `server/index.ts` (Hono): serves `dist/` + `/api/*`. **R2** bucket `photoguessr`
   stores everything; no database. **Cloudflare Worker** `photoguessr-sweeper` (`sweeper/`, hourly
-  cron) deletes pools inactive > 3 days. Deploy notes: `docs/deploy.md`.
-- **Pools:** created at `/admin` with `ADMIN_CODE`. Each has an **upload key** (iPhone Shortcut,
-  `/manage`) and a **play key** (players). Keys: 6 chars `A-Z0-9`, case-insensitive, stored only
-  as `HMAC(KEY_PEPPER, key)`. Wrong key/admin attempts: 10/min/IP, then the IP waits (429).
-- **Expiry:** every play/upload/delete updates `lastActivityAt`; pool + keys + photos + answers are
-  deleted 72 h after it (on access, by the server's hourly sweep, and by the sweeper Worker).
+  cron, every 15 min) deletes expired pools. Deploy notes: `docs/deploy.md`.
+- **Pools:** created at `/admin` with `ADMIN_CODE`. **One key per pool** does everything: play,
+  upload (iPhone Shortcut), status and delete on the Pool home screen (`/`). Keys: 6 chars `A-Z0-9`,
+  case-insensitive, stored only as `HMAC(KEY_PEPPER, key)`. Wrong key/admin attempts: 10/min/IP,
+  then the IP waits (429).
+- **Expiry** (`server/expiry.ts`): a pool **with photos** is deleted 72 h after its last
+  play/upload/delete; an **empty** pool 1 h after it became empty (`emptySince`: creation or last
+  photo deleted; visits don't extend it). Enforced on access, by the server's hourly sweep and by
+  the sweeper Worker (every 15 min). Emptiness is read from the bucket (`ObjectStore.any`).
 - **Photos:** the iPhone Shortcut (`docs/iphone-shortcut.md`) or `npm run upload` sends a 1920 px
   JPEG + lat/lng/takenAt. The server ALWAYS re-encodes to WebP q80 <= 1920 px with no metadata
   (`server/ingest.ts`), dedups by sha256, geocodes via a 1 req/s Nominatim queue.
 - **Layout** (single source of truth: `server/poolStore.ts`, shared with the sweeper):
-  `keys/<hash>.json`, `pools/<id>/pool.json`, `pools/<id>/photos/<photoId>.{webp,json}`, `pools/<id>/hashes/<sha>`.
+  `keys/<hash>.json` -> `{poolId}`, `pools/<id>/pool.json` (`keyHash, createdAt, lastActivityAt, emptySince`),
+  `pools/<id>/photos/<photoId>.{webp,json}`, `pools/<id>/hashes/<sha>`.
 - **Module seams / tests:** `ObjectStore` (Memory | S3-R2 | R2 binding) → `poolStore` → `PoolService`
   (keys/auth/expiry) → `createApp` routes. Tests use `MemoryObjects` + `app.request`.
 

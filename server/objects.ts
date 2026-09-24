@@ -11,6 +11,8 @@ export interface ObjectStore {
   list(prefix: string): Promise<string[]>
   /** Immediate "sub-folders" under a prefix, e.g. list pools/ -> ["pools/<id>/", ...]. */
   listPrefixes(prefix: string): Promise<string[]>
+  /** True if at least one object exists under the prefix (asks the store for a single item). */
+  any(prefix: string): Promise<boolean>
 }
 
 export class MemoryObjects implements ObjectStore {
@@ -27,6 +29,10 @@ export class MemoryObjects implements ObjectStore {
   }
   async list(prefix: string) {
     return this.keys().filter((k) => k.startsWith(prefix))
+  }
+  async any(prefix: string) {
+    for (const k of this.data.keys()) if (k.startsWith(prefix)) return true
+    return false
   }
   async listPrefixes(prefix: string) {
     const out = new Set<string>()

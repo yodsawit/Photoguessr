@@ -5,7 +5,7 @@ import ClickSpark from './ui/ClickSpark'
 
 type Props = {
   photo: PublicPhoto
-  /** Local object URL of the photo (fetched with the play key). */
+  /** Local object URL of the photo (fetched with the pool key). */
   imageUrl: string
   opened: ReadonlySet<number>
   disabled: boolean

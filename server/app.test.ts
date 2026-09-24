@@ -1,13 +1,14 @@
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 import { createApp } from './app'
-import { INACTIVITY_MS } from './expiry'
+import { EMPTY_MS, INACTIVITY_MS } from './expiry'
 import { MemoryObjects } from './objects'
 import { createPoolStore } from './poolStore'
 import { PoolService } from './pools'
 
 const ADMIN = 'admin-code-123'
 const T0 = Date.parse('2026-09-24T00:00:00Z')
+const MIN = 60_000
 
 function setup() {
   let now = T0
@@ -36,7 +37,7 @@ function setup() {
   const createPool = async () => {
     const res = await call('/api/pools', { method: 'POST', headers: { 'X-Admin-Code': ADMIN } })
     expect(res.status).toBe(201)
-    return (await res.json()) as { uploadKey: string; playKey: string }
+    return ((await res.json()) as { key: string }).key
   }
   const upload = async (key: string, fields: Record<string, string> = { lat: '18.8018', lng: '98.9672', takenAt: '2024-09-28T11:10:56+07:00' }, color = 100) => {
     const img = await sharp({ create: { width: 400, height: 300, channels: 3, background: { r: color, g: 50, b: 50 } } }).jpeg().toBuffer()
@@ -45,44 +46,42 @@ function setup() {
     for (const [k, v] of Object.entries(fields)) form.set(k, v)
     return call('/api/photos', { method: 'POST', body: form, key })
   }
-  return { app, call, createPool, upload, logs, objects, background, advance: (ms: number) => (now += ms) }
+  const status = async (key: string) => (await call('/api/pool', { key })).json() as Promise<Record<string, unknown>>
+  return { call, createPool, upload, status, logs, objects, background, advance: (ms: number) => (now += ms) }
 }
 
 describe('pool creation', () => {
-  it('needs the admin code and returns two 6-char keys', async () => {
+  it('needs the admin code and returns exactly one 6-char key', async () => {
     const { call, createPool } = setup()
     expect((await call('/api/pools', { method: 'POST' })).status).toBe(401)
     expect((await call('/api/pools', { method: 'POST', headers: { 'X-Admin-Code': 'nope' } })).status).toBe(401)
-    const keys = await createPool()
-    expect(keys.uploadKey).toMatch(/^[A-Z0-9]{6}$/)
-    expect(keys.playKey).toMatch(/^[A-Z0-9]{6}$/)
-    expect(Object.keys(keys).sort()).toEqual(['playKey', 'uploadKey'])
+    const res = await call('/api/pools', { method: 'POST', headers: { 'X-Admin-Code': ADMIN } })
+    expect(Object.keys((await res.json()) as object)).toEqual(["key"])
+    expect(await createPool()).toMatch(/^[A-Z0-9]{6}$/)
   })
 })
 
-describe('upload + play', () => {
+describe('one key does everything', () => {
   it('uploads, lists without answers, serves the image, reveals the answer only on guess', async () => {
     const { call, createPool, upload, background } = setup()
-    const { uploadKey, playKey } = await createPool()
-    const up = await upload(uploadKey.toLowerCase())
+    const key = await createPool()
+    const up = await upload(key.toLowerCase())
     expect(up.status).toBe(201)
     const { photoId } = (await up.json()) as { photoId: string }
     await Promise.all(background)
 
-    const rounds = await call('/api/rounds?count=5', { key: playKey })
-    expect(rounds.status).toBe(200)
-    const list = (await rounds.json()) as Record<string, unknown>[]
+    const list = (await (await call('/api/rounds?count=5', { key })).json()) as Record<string, unknown>[]
     expect(list).toEqual([{ id: photoId, width: 400, height: 300 }])
     expect(JSON.stringify(list)).not.toMatch(/lat|lng|18\.80|Chiang|2024/)
 
-    const photo = await call(`/api/photo/${photoId}`, { key: playKey })
+    const photo = await call(`/api/photo/${photoId}`, { key })
     expect(photo.headers.get('content-type')).toBe('image/webp')
     expect(photo.headers.get('cache-control')).toContain('no-store')
     expect((await sharp(Buffer.from(await photo.arrayBuffer())).metadata()).exif).toBeUndefined()
 
     const guess = await call('/api/guess', {
       method: 'POST',
-      key: playKey,
+      key,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: photoId, guess: { lat: 18.8018, lng: 98.9672 }, opened: [0], timedOut: false }),
     })
@@ -93,76 +92,88 @@ describe('upload + play', () => {
 
   it('detects duplicates and supports concurrent uploads to one pool', async () => {
     const { call, createPool, upload } = setup()
-    const { uploadKey, playKey } = await createPool()
-    const [a, b] = await Promise.all([upload(uploadKey, undefined, 10), upload(uploadKey, undefined, 20)])
+    const key = await createPool()
+    const [a, b] = await Promise.all([upload(key, undefined, 10), upload(key, undefined, 20)])
     expect([a.status, b.status]).toEqual([201, 201])
-    const dup = await upload(uploadKey, undefined, 10)
+    const dup = await upload(key, undefined, 10)
     expect(dup.status).toBe(200)
     expect(await dup.json()).toMatchObject({ duplicate: true })
-    const list = (await (await call('/api/rounds?count=10', { key: playKey })).json()) as unknown[]
-    expect(list).toHaveLength(2)
+    expect((await (await call('/api/rounds?count=10', { key })).json()) as unknown[]).toHaveLength(2)
   })
 
-  it('enforces roles: play key cannot upload/delete, upload key cannot play', async () => {
-    const { call, createPool, upload } = setup()
-    const { uploadKey, playKey } = await createPool()
-    expect((await upload(playKey)).status).toBe(401)
-    expect((await call('/api/pool', { method: 'DELETE', key: playKey })).status).toBe(401)
-    expect((await call('/api/rounds', { key: uploadKey })).status).toBe(401)
+  it('rejects missing and wrong keys', async () => {
+    const { call, createPool } = setup()
+    await createPool()
     expect((await call('/api/rounds')).status).toBe(401)
+    expect((await call('/api/pool', { key: 'ZZZZZZ' })).status).toBe(401)
+    expect((await call('/api/pool', { method: 'DELETE', key: 'ZZZZZZ' })).status).toBe(401)
   })
 
   it('keeps pools isolated', async () => {
     const { call, createPool, upload } = setup()
     const a = await createPool()
     const b = await createPool()
-    const { photoId } = (await (await upload(a.uploadKey)).json()) as { photoId: string }
-    expect((await call(`/api/photo/${photoId}`, { key: b.playKey })).status).toBe(404)
-    expect(await (await call('/api/rounds', { key: b.playKey })).json()).toEqual([])
+    const { photoId } = (await (await upload(a)).json()) as { photoId: string }
+    expect((await call(`/api/photo/${photoId}`, { key: b })).status).toBe(404)
+    expect(await (await call('/api/rounds', { key: b })).json()).toEqual([])
   })
 
-  it('manages a pool: status, delete one photo, delete pool', async () => {
-    const { call, createPool, upload, objects } = setup()
-    const { uploadKey, playKey } = await createPool()
-    const { photoId } = (await (await upload(uploadKey)).json()) as { photoId: string }
-    const status = (await (await call('/api/pool', { key: uploadKey })).json()) as Record<string, unknown>
-    expect(status).toMatchObject({ photoCount: 1, expiresAt: new Date(T0 + INACTIVITY_MS).toISOString() })
-    expect((await call(`/api/photos/${photoId}`, { method: 'DELETE', key: uploadKey })).status).toBe(200)
-    expect((await call(`/api/photos/${photoId}`, { method: 'DELETE', key: uploadKey })).status).toBe(404)
-    expect((await call('/api/pool', { method: 'DELETE', key: uploadKey })).status).toBe(200)
+  it('status, delete one photo, delete pool', async () => {
+    const { call, createPool, upload, status, objects } = setup()
+    const key = await createPool()
+    expect(await status(key)).toMatchObject({ photoCount: 0, empty: true, expiresAt: new Date(T0 + EMPTY_MS).toISOString() })
+    const { photoId } = (await (await upload(key)).json()) as { photoId: string }
+    expect(await status(key)).toMatchObject({ photoCount: 1, empty: false, expiresAt: new Date(T0 + INACTIVITY_MS).toISOString() })
+    expect((await call(`/api/photos/${photoId}`, { method: 'DELETE', key })).status).toBe(200)
+    expect((await call(`/api/photos/${photoId}`, { method: 'DELETE', key })).status).toBe(404)
+    expect(await status(key)).toMatchObject({ photoCount: 0, empty: true })
+    expect((await call('/api/pool', { method: 'DELETE', key })).status).toBe(200)
     expect(objects.keys()).toEqual([])
-    expect((await call('/api/rounds', { key: playKey })).status).toBe(401)
-  })
-
-  it('expires a pool after 3 days without activity, but activity keeps it alive', async () => {
-    const { call, createPool, advance } = setup()
-    const a = await createPool()
-    const b = await createPool()
-    advance(INACTIVITY_MS - 60_000)
-    expect((await call('/api/rounds', { key: b.playKey })).status).toBe(200) // activity on b
-    advance(120_000)
-    expect((await call('/api/rounds', { key: a.playKey })).status).toBe(404)
-    expect((await call('/api/rounds', { key: b.playKey })).status).toBe(200)
+    expect((await call('/api/rounds', { key })).status).toBe(401)
   })
 
   it('rejects bad photo ids and bad guesses', async () => {
     const { call, createPool } = setup()
-    const { playKey } = await createPool()
-    expect((await call('/api/photo/..%2F..%2Fkeys', { key: playKey })).status).toBe(404)
-    const bad = await call('/api/guess', { method: 'POST', key: playKey, body: '{"id":"x"}', headers: { 'Content-Type': 'application/json' } })
+    const key = await createPool()
+    expect((await call('/api/photo/..%2F..%2Fkeys', { key })).status).toBe(404)
+    const bad = await call('/api/guess', { method: 'POST', key, body: '{"id":"x"}', headers: { 'Content-Type': 'application/json' } })
     expect(bad.status).toBe(400)
+  })
+})
+
+describe('expiry over HTTP', () => {
+  it('an empty pool is gone 1 h after creation even if visited', async () => {
+    const { call, createPool, advance } = setup()
+    const key = await createPool()
+    advance(40 * MIN)
+    expect((await call('/api/pool', { key })).status).toBe(200)
+    advance(21 * MIN)
+    expect((await call('/api/pool', { key })).status).toBe(404)
+  })
+
+  it('a pool with photos lives 3 days after last activity; activity keeps it alive', async () => {
+    const { call, createPool, upload, advance } = setup()
+    const a = await createPool()
+    const b = await createPool()
+    await upload(a, undefined, 10)
+    await upload(b, undefined, 20)
+    advance(INACTIVITY_MS - MIN)
+    expect((await call('/api/rounds', { key: b })).status).toBe(200) // activity on b only
+    advance(2 * MIN)
+    expect((await call('/api/rounds', { key: a })).status).toBe(404)
+    expect((await call('/api/rounds', { key: b })).status).toBe(200)
   })
 })
 
 describe('brute-force protection', () => {
   it('locks an IP after 10 wrong keys (even a correct key then waits), other IPs unaffected', async () => {
     const { call, createPool } = setup()
-    const { playKey } = await createPool()
+    const key = await createPool()
     for (let i = 0; i < 10; i++) expect((await call('/api/rounds', { key: 'AAAAAA', ip: '6.6.6.6' })).status).toBe(401)
-    const locked = await call('/api/rounds', { key: playKey, ip: '6.6.6.6' })
+    const locked = await call('/api/rounds', { key, ip: '6.6.6.6' })
     expect(locked.status).toBe(429)
     expect(locked.headers.get('retry-after')).toBeTruthy()
-    expect((await call('/api/rounds', { key: playKey, ip: '7.7.7.7' })).status).toBe(200)
+    expect((await call('/api/rounds', { key, ip: '7.7.7.7' })).status).toBe(200)
   })
 
   it('also counts wrong admin codes', async () => {
@@ -175,12 +186,12 @@ describe('brute-force protection', () => {
 describe('privacy', () => {
   it('logs only method, route pattern, status and timing — never keys, ids, coordinates or bodies', async () => {
     const { call, createPool, upload, logs } = setup()
-    const { uploadKey, playKey } = await createPool()
-    const { photoId } = (await (await upload(uploadKey)).json()) as { photoId: string }
-    await call(`/api/photo/${photoId}`, { key: playKey })
+    const key = await createPool()
+    const { photoId } = (await (await upload(key)).json()) as { photoId: string }
+    await call(`/api/photo/${photoId}`, { key })
     await call('/api/rounds', { key: 'WRONG1' })
     const all = logs.join('\n')
-    for (const secret of [uploadKey, playKey, photoId, '18.80', '98.96', 'WRONG1', ADMIN, '1.1.1.1']) expect(all).not.toContain(secret)
+    for (const secret of [key, photoId, '18.80', '98.96', 'WRONG1', ADMIN, '1.1.1.1']) expect(all).not.toContain(secret)
     expect(all).toContain('GET /api/photo/:id 200')
   })
 

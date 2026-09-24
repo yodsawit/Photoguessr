@@ -4,7 +4,7 @@ Adds photos from the Photos app to your pool. The photo is shrunk and cleaned **
 (1920 px JPEG, no metadata, ~360 KB instead of ~2.5 MB). Only the image pixels and the answer
 (latitude, longitude, date) are sent. Originals and your iCloud library stay private.
 
-You need: your pool's **upload key** (6 characters, from `/admin`) and your game URL, e.g.
+You need: your **pool key** (6 characters, from `/admin`) and your game URL, e.g.
 `https://photoguessr.onrender.com`.
 
 ## Build it (Shortcuts app → + → new shortcut)
@@ -23,7 +23,7 @@ You need: your pool's **upload key** (6 characters, from `/admin`) and your game
    8. **Get Contents of URL**:
       - URL: `https://YOUR-SERVICE.onrender.com/api/photos`
       - Method: **POST**
-      - Headers: `Authorization` = `Bearer ABC123` (your upload key after `Bearer `)
+      - Headers: `Authorization` = `Bearer ABC123` (your pool key after `Bearer `)
       - Request Body: **Form**
         - `photo` → type **File** → *Converted Image*
         - `lat` → Text → `Lat`
@@ -34,19 +34,21 @@ You need: your pool's **upload key** (6 characters, from `/admin`) and your game
 ## Use it
 Photos → select photos → Share → **Add to PhotoGuessr**.
 
-- **Two phones:** both can use the same upload key at the same time.
+- **Two phones:** both can use the same pool key at the same time.
 - **Duplicates:** photos already in the pool are skipped.
 - **No location:** photos without a location are refused ("Photo has no location"). Location must be
   on for the Camera (Settings → Privacy → Location Services → Camera).
 - **First upload after a quiet period:** it can take ~1 minute, because Render's free plan sleeps
   when idle. Open the game site first to wake it.
-- **Auto-delete:** the pool and all its photos are deleted **3 days after the last play, upload or
-  delete**. Check the time on `/manage`.
+- **Auto-delete:** a pool with photos is deleted **3 days after the last play, upload or delete**.
+  A new or emptied pool is deleted **1 hour after it became empty**, so add the first photo soon
+  after creating it. Check the time on the Pool home screen (open the site, enter the key).
+- **Sharing:** the same key is what players use. Anyone with it can also add and delete photos.
 
 ## Troubleshooting
 | Message | Meaning |
 |---|---|
-| `Invalid key` | Wrong upload key (a play key can't upload), or the pool was deleted/expired |
+| `Invalid key` | Wrong pool key, or the pool was deleted/expired |
 | `Too many wrong attempts` | 10 wrong keys from your network within a minute; wait a minute |
 | `Photo has no location` | The photo has no GPS (screenshots, downloaded images, location off) |
 | `Unsupported image` | The file isn't a photo the server can read |

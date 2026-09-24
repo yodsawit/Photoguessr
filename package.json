@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently -k -n api,web -c blue,magenta \"npm:dev:server\" \"npm:dev:web\"",
     "dev:web": "vite",
-    "dev:server": "tsx watch server/index.ts",
+    "dev:server": "node --watch --import tsx server/index.ts",
     "build": "tsc -b && vite build && npm run build:server",
     "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --target=node22 --packages=external --outfile=dist-server/index.js",
     "start": "node dist-server/index.js",

@@ -60,9 +60,6 @@ export function FooterLinks() {
       <a href="/" className="px-2 py-3 hover:text-ink">
         Play
       </a>
-      <a href="/manage" className="px-2 py-3 hover:text-ink">
-        Manage my pool
-      </a>
       <a href="/admin" className="px-2 py-3 hover:text-ink">
         Create pool
       </a>

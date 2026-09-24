@@ -1,7 +1,7 @@
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'node:crypto'
 import { HttpError } from './errors'
 import { isExpired } from './expiry'
-import type { PoolRecord, PoolStore, Role } from './poolStore'
+import type { PoolRecord, PoolStore } from './poolStore'
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 const KEY_LENGTH = 6
@@ -30,6 +30,9 @@ export function hashKey(key: string, pepper: string): string {
 
 const sameHash = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b))
 
+export type AuthedPool = { pool: PoolRecord; hasPhotos: boolean }
+
+/** One key per pool: whoever has it can play, add/delete photos, see status and delete the pool. */
 export class PoolService {
   constructor(
     private readonly store: PoolStore,
@@ -39,49 +42,50 @@ export class PoolService {
     if (pepper.length < 16) throw new Error('KEY_PEPPER must be at least 16 characters')
   }
 
-  /** Creates a pool and returns its keys. The keys are never stored and cannot be shown again. */
-  async createPool(): Promise<{ poolId: string; uploadKey: string; playKey: string }> {
-    const uploadKey = await this.freshKey()
-    let playKey = await this.freshKey()
-    while (playKey === uploadKey) playKey = await this.freshKey()
+  private iso() {
+    return new Date(this.now()).toISOString()
+  }
 
-    const at = new Date(this.now()).toISOString()
-    const pool: PoolRecord = {
-      poolId: randomUUID(),
-      uploadKeyHash: hashKey(uploadKey, this.pepper),
-      playKeyHash: hashKey(playKey, this.pepper),
-      createdAt: at,
-      lastActivityAt: at,
-    }
+  /** Creates an empty pool and returns its key. The key is never stored and cannot be shown again. */
+  async createPool(): Promise<{ poolId: string; key: string }> {
+    const key = await this.freshKey()
+    const at = this.iso()
+    const pool: PoolRecord = { poolId: randomUUID(), keyHash: hashKey(key, this.pepper), createdAt: at, lastActivityAt: at, emptySince: at }
     await this.store.putPool(pool)
-    await this.store.putKey(pool.uploadKeyHash, { poolId: pool.poolId, role: 'upload' })
-    await this.store.putKey(pool.playKeyHash, { poolId: pool.poolId, role: 'play' })
-    return { poolId: pool.poolId, uploadKey, playKey }
+    await this.store.putKey(pool.keyHash, { poolId: pool.poolId })
+    return { poolId: pool.poolId, key }
   }
 
   /**
-   * Resolves a key to its pool for the given role and records activity.
-   * 401 for any wrong/unknown/other-role key (never says which); 404 if the pool just expired.
+   * Resolves a key to its pool and records activity. 401 for any wrong/unknown key (never says
+   * why); 404 if the pool had expired — it is deleted on the spot.
    */
-  async authenticate(rawKey: unknown, role: Role): Promise<PoolRecord> {
+  async authenticate(rawKey: unknown): Promise<AuthedPool> {
     const key = normalizeKey(rawKey)
     if (!key) throw new HttpError(401, 'Invalid key')
     const keyHash = hashKey(key, this.pepper)
     const entry = await this.store.getKey(keyHash)
-    if (!entry || entry.role !== role) throw new HttpError(401, 'Invalid key')
+    const pool = entry && (await this.store.getPool(entry.poolId))
+    if (!pool || !sameHash(pool.keyHash, keyHash)) throw new HttpError(401, 'Invalid key')
 
-    const pool = await this.store.getPool(entry.poolId)
-    const expected = role === 'upload' ? pool?.uploadKeyHash : pool?.playKeyHash
-    if (!pool || !expected || !sameHash(expected, keyHash)) throw new HttpError(401, 'Invalid key')
-
-    const now = this.now()
-    if (isExpired(pool.lastActivityAt, now)) {
+    const hasPhotos = await this.store.hasPhotos(pool.poolId)
+    if (isExpired(pool, hasPhotos, this.now())) {
       await this.store.deletePool(pool)
       throw new HttpError(404, 'This pool has expired')
     }
-    const touched = { ...pool, lastActivityAt: new Date(now).toISOString() }
+    const touched = { ...pool, lastActivityAt: this.iso() }
     await this.store.putPool(touched)
-    return touched
+    return { pool: touched, hasPhotos }
+  }
+
+  /** After storing a photo: the pool is no longer empty. */
+  async markHasPhotos(pool: PoolRecord) {
+    if (pool.emptySince !== null) await this.store.putPool({ ...pool, emptySince: null })
+  }
+
+  /** After deleting a photo: if that was the last one, start the 1 h empty clock now. */
+  async markMaybeEmpty(pool: PoolRecord) {
+    if (!(await this.store.hasPhotos(pool.poolId))) await this.store.putPool({ ...pool, emptySince: this.iso() })
   }
 
   private async freshKey(): Promise<string> {

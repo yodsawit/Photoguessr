@@ -6,7 +6,7 @@ export interface R2BucketLike {
   get(key: string): Promise<{ arrayBuffer(): Promise<ArrayBuffer> } | null>
   put(key: string, value: Uint8Array, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>
   delete(keys: string | string[]): Promise<void>
-  list(options: { prefix?: string; delimiter?: string; cursor?: string }): Promise<{
+  list(options: { prefix?: string; delimiter?: string; cursor?: string; limit?: number }): Promise<{
     objects: { key: string }[]
     delimitedPrefixes: string[]
     truncated: boolean
@@ -40,6 +40,7 @@ export function r2BindingObjects(bucket: R2BucketLike): ObjectStore {
     async delete(keys) {
       for (let i = 0; i < keys.length; i += 1000) if (keys.slice(i, i + 1000).length) await bucket.delete(keys.slice(i, i + 1000))
     },
+    any: async (prefix) => (await bucket.list({ prefix, limit: 1 })).objects.length > 0,
     list: async (prefix) => (await listAll(prefix)).keys,
     listPrefixes: async (prefix) => (await listAll(prefix, '/')).prefixes,
   }

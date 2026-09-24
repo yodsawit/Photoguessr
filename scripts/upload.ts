@@ -2,7 +2,7 @@
  * Upload photos from this computer into a pool, exactly like the iPhone Shortcut does:
  * read GPS + date locally, shrink to 1920 px JPEG q80 with NO metadata, then POST.
  *
- *   npm run upload -- --key ABC123 [--url https://photoguessr.onrender.com] photos/*.HEIC
+ *   npm run upload -- --key ABC123   (your pool key) [--url https://photoguessr.onrender.com] photos/*.HEIC
  *
  * Default URL is the local dev server (http://localhost:5173). Originals never leave this machine.
  */
@@ -20,7 +20,7 @@ const { values, positionals } = parseArgs({
 })
 const key = values.key?.trim().toUpperCase()
 if (!key || !/^[A-Z0-9]{6}$/.test(key) || positionals.length === 0) {
-  console.error('usage: npm run upload -- --key <UPLOAD_KEY> [--url <server>] <photo files...>')
+  console.error('usage: npm run upload -- --key <POOL_KEY> [--url <server>] <photo files...>')
   process.exit(1)
 }
 

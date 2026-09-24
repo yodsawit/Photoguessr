@@ -13,8 +13,8 @@ import { HttpError } from './errors'
 import { expiresAt } from './expiry'
 import type { Geocoder } from './geocode'
 import { processUpload } from './ingest'
-import { isPhotoId, type PoolRecord, type PoolStore, type Role } from './poolStore'
-import type { PoolService } from './pools'
+import { isPhotoId, type PoolStore } from './poolStore'
+import type { AuthedPool, PoolService } from './pools'
 
 export type AppDeps = {
   pools: PoolService
@@ -126,12 +126,12 @@ export function createApp(deps: AppDeps) {
     if (wait > 0) throw new HttpError(429, String(wait))
   }
 
-  const auth = async (c: Context, role: Role): Promise<PoolRecord> => {
+  const auth = async (c: Context): Promise<AuthedPool> => {
     guard(c)
     const header = c.req.header('Authorization') ?? ''
     const key = header.startsWith('Bearer ') ? header.slice(7) : ''
     try {
-      return await pools.authenticate(key, role)
+      return await pools.authenticate(key)
     } catch (err) {
       if (err instanceof HttpError && err.status === 401) limiter.fail(clientIp(c))
       throw err
@@ -157,7 +157,7 @@ export function createApp(deps: AppDeps) {
 
   app.get('/api/health', (c) => c.json({ ok: true }))
 
-  // ---- owner -------------------------------------------------------------------------------
+  // ---- pool (one key does everything) -----------------------------------------------------
 
   app.post('/api/pools', async (c) => {
     guard(c)
@@ -167,24 +167,24 @@ export function createApp(deps: AppDeps) {
       limiter.fail(clientIp(c))
       throw new HttpError(401, 'Invalid admin code')
     }
-    const { uploadKey, playKey } = await pools.createPool()
-    return c.json({ uploadKey, playKey }, 201)
+    const { key } = await pools.createPool()
+    return c.json({ key }, 201)
   })
 
   app.get('/api/pool', async (c) => {
-    const pool = await auth(c, 'upload')
+    const { pool, hasPhotos } = await auth(c)
     const photoCount = (await store.listPhotoIds(pool.poolId)).length
-    return c.json({ photoCount, lastActivityAt: pool.lastActivityAt, expiresAt: expiresAt(pool.lastActivityAt) })
+    return c.json({ photoCount, empty: !hasPhotos, lastActivityAt: pool.lastActivityAt, expiresAt: expiresAt(pool, hasPhotos) })
   })
 
   app.delete('/api/pool', async (c) => {
-    const pool = await auth(c, 'upload')
+    const { pool } = await auth(c)
     await store.deletePool(pool)
     return c.json({ deleted: true })
   })
 
   app.post('/api/photos', async (c) => {
-    const pool = await auth(c, 'upload')
+    const { pool } = await auth(c)
     const body = await c.req.parseBody()
     const file = body.photo
     if (!(file instanceof File)) throw new HttpError(400, 'Missing photo')
@@ -209,20 +209,22 @@ export function createApp(deps: AppDeps) {
       sha256: processed.sha256,
       uploadedAt: new Date(now()).toISOString(),
     })
+    await pools.markHasPhotos(pool)
     background(withPlace(pool.poolId, photoId)) // Nominatim is queued at 1 req/s; don't make the phone wait
     return c.json({ photoId }, 201)
   })
 
   app.delete('/api/photos/:id', async (c) => {
-    const pool = await auth(c, 'upload')
+    const { pool } = await auth(c)
     if (!(await store.deletePhoto(pool.poolId, photoIdParam(c)))) throw new HttpError(404, 'Not found')
+    await pools.markMaybeEmpty(pool)
     return c.json({ deleted: true })
   })
 
-  // ---- player ------------------------------------------------------------------------------
+  // ---- playing -----------------------------------------------------------------------------
 
   app.get('/api/rounds', async (c) => {
-    const pool = await auth(c, 'play')
+    const { pool } = await auth(c)
     const count = Math.min(MAX_ROUNDS, Math.max(1, Number(c.req.query('count')) || 1))
     const ids = shuffle(await store.listPhotoIds(pool.poolId)).slice(0, count)
     const answers = await Promise.all(ids.map((id) => store.getAnswer(pool.poolId, id)))
@@ -234,14 +236,14 @@ export function createApp(deps: AppDeps) {
   })
 
   app.get('/api/photo/:id', async (c) => {
-    const pool = await auth(c, 'play')
+    const { pool } = await auth(c)
     const image = await store.getImage(pool.poolId, photoIdParam(c))
     if (!image) throw new HttpError(404, 'Not found')
     return c.body(image as Uint8Array<ArrayBuffer>, 200, { 'Content-Type': 'image/webp' })
   })
 
   app.post('/api/guess', async (c) => {
-    const pool = await auth(c, 'play')
+    const { pool } = await auth(c)
     const req = (await c.req.json().catch(() => null)) as Record<string, unknown> | null
     const id = typeof req?.id === 'string' ? req.id : ''
     if (!isPhotoId(id)) throw new HttpError(400, 'Invalid guess')

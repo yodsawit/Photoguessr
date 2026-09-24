@@ -13,25 +13,31 @@ import { TileGrid } from './components/TileGrid'
 import { Timer } from './components/Timer'
 import CountUp from './components/ui/CountUp'
 import { AdminPage } from './pages/AdminPage'
-import { ManagePage } from './pages/ManagePage'
+import { PoolHome } from './pages/PoolHome'
 
 /** Rounds per game. 1 for now while testing. */
 const ROUNDS = 1
-const PLAY_KEY_STORAGE = 'photoguessr.playKey'
+const POOL_KEY_STORAGE = 'photoguessr.poolKey'
+const LEGACY_KEY_STORAGE = 'photoguessr.playKey'
 
-/** Remembering the play key is a per-device convenience; everything works without storage. */
+/** Remembering the pool key is a per-device convenience; everything works without storage. */
 const rememberedKey = {
   get: () => {
     try {
-      return localStorage.getItem(PLAY_KEY_STORAGE) ?? ''
+      const legacy = localStorage.getItem(LEGACY_KEY_STORAGE)
+      if (legacy) {
+        localStorage.removeItem(LEGACY_KEY_STORAGE)
+        localStorage.setItem(POOL_KEY_STORAGE, legacy)
+      }
+      return localStorage.getItem(POOL_KEY_STORAGE) ?? ''
     } catch {
       return ''
     }
   },
   set: (v: string) => {
     try {
-      if (v) localStorage.setItem(PLAY_KEY_STORAGE, v)
-      else localStorage.removeItem(PLAY_KEY_STORAGE)
+      if (v) localStorage.setItem(POOL_KEY_STORAGE, v)
+      else localStorage.removeItem(POOL_KEY_STORAGE)
     } catch {
       /* private mode: key just isn't remembered */
     }
@@ -41,27 +47,32 @@ const rememberedKey = {
 export default function App() {
   const path = window.location.pathname.replace(/\/+$/, '')
   if (path === '/admin') return <AdminPage />
-  if (path === '/manage') return <ManagePage />
-  return <PlayPage />
+  if (path === '/manage') window.history.replaceState(null, '', '/') // old link: pool management now lives on the pool screen
+  return <PoolPage />
 }
 
-function PlayPage() {
-  const [playKey, setPlayKey] = useState(rememberedKey.get)
+/** One key per pool: enter it once, then pool home (status/delete) and the game share it. */
+function PoolPage() {
+  const [poolKey, setPoolKey] = useState(rememberedKey.get)
+  const [view, setView] = useState<'home' | 'game'>('home')
   const [joinError, setJoinError] = useState<string | null>(null)
 
   const join = (key: string) => {
     rememberedKey.set(key)
     setJoinError(null)
-    setPlayKey(key)
+    setView('home')
+    setPoolKey(key)
   }
   const leave = useCallback((reason: string | null = null) => {
     rememberedKey.set('')
     setJoinError(reason)
-    setPlayKey('')
+    setPoolKey('')
   }, [])
+  const backToPool = useCallback(() => setView('home'), [])
 
-  if (!playKey) return <JoinPage error={joinError} onJoin={join} />
-  return <Game key={playKey} playKey={playKey} onLeave={leave} />
+  if (!poolKey) return <JoinPage error={joinError} onJoin={join} />
+  if (view === 'home') return <PoolHome key={poolKey} poolKey={poolKey} onPlay={() => setView('game')} onLeave={leave} />
+  return <Game key={poolKey} poolKey={poolKey} onLeave={leave} onBack={backToPool} />
 }
 
 function JoinPage({ error, onJoin }: { error: string | null; onJoin: (key: string) => void }) {
@@ -72,7 +83,7 @@ function JoinPage({ error, onJoin }: { error: string | null; onJoin: (key: strin
         <p className="text-4xl" aria-hidden>
           📸
         </p>
-        <Title>Join a photo pool</Title>
+        <Title>Open a photo pool</Title>
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -80,10 +91,10 @@ function JoinPage({ error, onJoin }: { error: string | null; onJoin: (key: strin
           }}
           className="mt-5 space-y-4"
         >
-          <KeyInput label="Play key" value={key} onChange={setKey} autoFocus />
+          <KeyInput label="Pool key" value={key} onChange={setKey} autoFocus />
           {error && <p className="rounded-xl bg-peach/25 px-3 py-2 text-sm font-semibold text-coral">{error}</p>}
           <Button type="submit" tone="coral" disabled={!KEY_PATTERN.test(key)}>
-            Play
+            Open pool
           </Button>
         </form>
       </Card>
@@ -93,7 +104,7 @@ function JoinPage({ error, onJoin }: { error: string | null; onJoin: (key: strin
 
 type Load = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ready'; photos: PublicPhoto[] }
 
-function Game({ playKey, onLeave }: { playKey: string; onLeave: (reason?: string | null) => void }) {
+function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?: string | null) => void; onBack: () => void }) {
   const [gameKey, setGameKey] = useState(0)
   const [load, setLoad] = useState<Load>({ state: 'loading' })
   const [roundIndex, setRoundIndex] = useState(0)
@@ -104,18 +115,18 @@ function Game({ playKey, onLeave }: { playKey: string; onLeave: (reason?: string
   useEffect(() => {
     let cancelled = false
     setLoad({ state: 'loading' })
-    fetchRounds(playKey, ROUNDS)
+    fetchRounds(poolKey, ROUNDS)
       .then((photos) => !cancelled && setLoad({ state: 'ready', photos }))
       .catch((err: unknown) => {
         if (cancelled) return
-        if (err instanceof ApiError && (err.status === 401 || err.status === 404)) onLeave('That play key is not valid, or the pool has expired.')
+        if (err instanceof ApiError && (err.status === 401 || err.status === 404)) onLeave('That pool key is not valid, or the pool has expired.')
         else if (err instanceof ApiError && err.status === 429) setLoad({ state: 'error', message: 'Too many wrong keys from this network. Wait a minute and try again.' })
         else setLoad({ state: 'error', message: err instanceof Error ? err.message : 'Something went wrong' })
       })
     return () => {
       cancelled = true
     }
-  }, [gameKey, playKey, onLeave])
+  }, [gameKey, poolKey, onLeave])
 
   const playAgain = () => {
     setGameKey((k) => k + 1)
@@ -141,14 +152,14 @@ function Game({ playKey, onLeave }: { playKey: string; onLeave: (reason?: string
           {load.state === 'ready' && (
             <>
               <h1 className="text-2xl font-extrabold">No photos yet</h1>
-              <p className="mt-2 text-muted">This pool is empty. The owner can add photos from their iPhone.</p>
+              <p className="mt-2 text-muted">This pool is empty. Add photos from your iPhone with the pool key.</p>
               <Button className="mt-6" onClick={playAgain}>
                 Check again
               </Button>
             </>
           )}
-          <Button tone="quiet" className="mt-3" onClick={() => onLeave()}>
-            Use another key
+          <Button tone="quiet" className="mt-3" onClick={onBack}>
+            Back to pool
           </Button>
         </Card>
       </CenteredPage>
@@ -165,16 +176,16 @@ function Game({ playKey, onLeave }: { playKey: string; onLeave: (reason?: string
   return (
     <Shell>
       {gameOver ? (
-        <GameOver total={total} rounds={photos.length} onPlayAgain={playAgain} />
+        <GameOver total={total} rounds={photos.length} onPlayAgain={playAgain} onBack={onBack} />
       ) : (
         <Round
           key={`${gameKey}-${roundIndex}`}
-          playKey={playKey}
+          poolKey={poolKey}
           photo={photos[roundIndex]}
           roundNo={roundIndex + 1}
           rounds={photos.length}
           onDone={next}
-          onLeave={() => onLeave()}
+          onLeave={onBack}
         />
       )}
     </Shell>
@@ -182,7 +193,7 @@ function Game({ playKey, onLeave }: { playKey: string; onLeave: (reason?: string
 }
 
 type RoundProps = {
-  playKey: string
+  poolKey: string
   photo: PublicPhoto
   roundNo: number
   rounds: number
@@ -190,17 +201,17 @@ type RoundProps = {
   onLeave: () => void
 }
 
-function Round({ playKey, photo, roundNo, rounds, onDone, onLeave }: RoundProps) {
-  const grade = useCallback((req: GuessRequest) => postGuess(playKey, req), [playKey])
+function Round({ poolKey, photo, roundNo, rounds, onDone, onLeave }: RoundProps) {
+  const grade = useCallback((req: GuessRequest) => postGuess(poolKey, req), [poolKey])
   const round = useRound(photo, grade)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imageError, setImageError] = useState(false)
 
-  // Download the photo with the play key before the timer can start; free it on unmount.
+  // Download the photo with the pool key before the timer can start; free it on unmount.
   useEffect(() => {
     const ctrl = new AbortController()
     let url: string | null = null
-    fetchPhotoUrl(playKey, photo.id, ctrl.signal)
+    fetchPhotoUrl(poolKey, photo.id, ctrl.signal)
       .then((u) => {
         url = u
         setImageUrl(u)
@@ -212,7 +223,7 @@ function Round({ playKey, photo, roundNo, rounds, onDone, onLeave }: RoundProps)
       ctrl.abort()
       if (url) URL.revokeObjectURL(url)
     }
-  }, [playKey, photo.id])
+  }, [poolKey, photo.id])
 
   return (
     <>
@@ -225,7 +236,7 @@ function Round({ playKey, photo, roundNo, rounds, onDone, onLeave }: RoundProps)
             Round {roundNo} / {rounds}
             {round.phase === 'ready' && (
               <button type="button" onClick={onLeave} className="ml-2 underline decoration-dotted underline-offset-2 hover:text-ink">
-                change pool
+                back to pool
               </button>
             )}
           </p>
@@ -294,7 +305,7 @@ function ReadyCard({ loading, failed, onStart }: { loading: boolean; failed: boo
   )
 }
 
-function GameOver({ total, rounds, onPlayAgain }: { total: number; rounds: number; onPlayAgain: () => void }) {
+function GameOver({ total, rounds, onPlayAgain, onBack }: { total: number; rounds: number; onPlayAgain: () => void; onBack: () => void }) {
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-10">
       <Card>
@@ -311,6 +322,9 @@ function GameOver({ total, rounds, onPlayAgain }: { total: number; rounds: numbe
         <p className="text-xs font-bold uppercase tracking-wide text-muted">total points</p>
         <Button className="mt-6" onClick={onPlayAgain}>
           Play again
+        </Button>
+        <Button tone="quiet" className="mt-3" onClick={onBack}>
+          Back to pool
         </Button>
       </Card>
     </main>

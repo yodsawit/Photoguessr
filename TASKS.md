@@ -1,13 +1,21 @@
 # Tasks
 
 ## Now
-- [ ] You: create R2 API token (Object Read & Write, bucket photoguessr) -> Render env + local .env
-- [ ] You: Render -> New -> Blueprint -> yodsawit/Photoguessr; set ADMIN_CODE, R2_*, NOMINATIM_CONTACT
-- [ ] Verify on real R2 + Render: E2E, two phones at once, sweeper deletes a 4-day-old test pool
+- [ ] You: Render Blueprint deploy (same KEY_PEPPER as .env)
+
+## Next
+- [ ] Speed: R2 round trips make each request ~1-3 s from Thailand (cache pool/key records per request)
 - [ ] Re-check animations + hover map in a visible Chrome window
 - [ ] More rounds (raise ROUNDS in src/App.tsx)
 
 ## Done
+- [x] v2.1 step 8: real-R2 E2E (upload, play, delete -> 0 objects; empty 2 h -> 404), UI check, committed + pushed (2026-09-25)
+- [x] v2.1 step 7: sweeper redeployed with new rules, cron */15, no public URL (2026-09-25)
+- [x] v2.1 step 6: two-key wording removed everywhere (code, docs, skills, CLAUDE.md, render.yaml); grep clean (2026-09-25)
+- [x] v2.1 step 5: PoolHome merges play + manage; admin shows one key; /manage redirects to / (2026-09-25)
+- [x] v2.1 steps 1-4: expiry 72 h/empty 1 h, ObjectStore.any, one-key PoolService + routes, R2_S3_ENDPOINT; 36 server tests (2026-09-24)
+- [x] You: R2 API token + local .env filled (2026-09-24)
+- [x] Dev fixes: node --watch --import tsx dev server (tsx watch hung under concurrently), printed dev admin code (2026-09-24)
 - [x] v2 step 8: iPhone Shortcut guide, deploy guide, CLAUDE.md/skills updated, committed + pushed (2026-09-24)
 - [x] v2 step 7: R2 bucket photoguessr (APAC, private) + photoguessr-sweeper Worker (hourly cron, no public URL) (2026-09-24)
 - [x] v2 step 5: join/admin/manage screens, keyed blob photo fetch; browser E2E passed; fixed OSM Referer + /assets 404 (2026-09-24)

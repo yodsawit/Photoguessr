@@ -29,24 +29,23 @@ async function call<T>(path: string, init: RequestInit & { key?: string } = {}):
 export const KEY_PATTERN = /^[A-Z0-9]{6}$/
 export const normalizeKey = (s: string) => s.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 6)
 
-// ---- player ----
+// ---- playing (the pool key) ----
 export const fetchRounds = (key: string, count: number) => call<PublicPhoto[]>(`/api/rounds?count=${count}`, { key })
 
 export const postGuess = (key: string, req: GuessRequest) =>
   call<GuessResponse>('/api/guess', { key, method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) })
 
-/** Downloads a photo with the play key and returns a local object URL (caller must revoke it). */
+/** Downloads a photo with the pool key and returns a local object URL (caller must revoke it). */
 export async function fetchPhotoUrl(key: string, photoId: string, signal?: AbortSignal): Promise<string> {
   const res = await fetch(`/api/photo/${photoId}`, { headers: { Authorization: `Bearer ${key}` }, signal })
   if (!res.ok) throw new ApiError(res.status, 'Could not load the photo')
   return URL.createObjectURL(await res.blob())
 }
 
-// ---- owner ----
-export type PoolKeys = { uploadKey: string; playKey: string }
-export type PoolStatus = { photoCount: number; lastActivityAt: string; expiresAt: string }
+// ---- pool (same key) ----
+export type PoolStatus = { photoCount: number; empty: boolean; lastActivityAt: string; expiresAt: string }
 
 export const createPool = (adminCode: string) =>
-  call<PoolKeys>('/api/pools', { method: 'POST', headers: { 'X-Admin-Code': adminCode } })
-export const fetchPoolStatus = (uploadKey: string) => call<PoolStatus>('/api/pool', { key: uploadKey })
-export const deletePool = (uploadKey: string) => call<{ deleted: true }>('/api/pool', { key: uploadKey, method: 'DELETE' })
+  call<{ key: string }>('/api/pools', { method: 'POST', headers: { 'X-Admin-Code': adminCode } })
+export const fetchPoolStatus = (key: string) => call<PoolStatus>('/api/pool', { key })
+export const deletePool = (key: string) => call<{ deleted: true }>('/api/pool', { key, method: 'DELETE' })

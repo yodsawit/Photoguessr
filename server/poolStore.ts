@@ -2,7 +2,7 @@
  * The R2 layout for pools, on top of any ObjectStore. Shared by the Render server and the
  * sweeper Worker, so there is one definition of what "a pool" is and how to delete it.
  *
- *   keys/<keyHash>.json                    { poolId, role }                      key -> pool index
+ *   keys/<keyHash>.json                    { poolId }                            key -> pool index
  *   pools/<poolId>/pool.json               PoolRecord
  *   pools/<poolId>/photos/<photoId>.webp   metadata-free image
  *   pools/<poolId>/photos/<photoId>.json   StoredAnswer (the hidden answer)
@@ -12,17 +12,16 @@ import { isExpired } from './expiry'
 import type { ObjectStore } from './objects'
 import type { Answer } from '../src/game/types'
 
-export type Role = 'upload' | 'play'
-
 export type PoolRecord = {
   poolId: string
-  uploadKeyHash: string
-  playKeyHash: string
+  keyHash: string
   createdAt: string
   lastActivityAt: string
+  /** When the pool last became empty (creation or last photo deleted); null while it has photos. */
+  emptySince: string | null
 }
 
-export type KeyRecord = { poolId: string; role: Role }
+export type KeyRecord = { poolId: string }
 
 export type StoredAnswer = Answer & {
   width: number
@@ -73,6 +72,9 @@ export function createPoolStore(objects: ObjectStore) {
       return keys.filter((k) => k.endsWith('.json')).map((k) => k.slice(k.lastIndexOf('/') + 1, -'.json'.length))
     },
 
+    /** Asks the bucket directly (one item), so concurrent uploads can't make it stale. */
+    hasPhotos: (poolId: string) => objects.any(`${poolDir(poolId)}photos/`),
+
     findBySha: async (poolId: string, sha256: string) => {
       const b = await objects.get(`${poolDir(poolId)}hashes/${sha256}`)
       return b ? dec.decode(b) : null
@@ -102,16 +104,16 @@ export function createPoolStore(objects: ObjectStore) {
     /** Deletes everything belonging to a pool, including its entries in the key index. */
     async deletePool(pool: PoolRecord) {
       // Key index first so the keys stop working even if the rest is interrupted.
-      await objects.delete([`keys/${pool.uploadKeyHash}.json`, `keys/${pool.playKeyHash}.json`])
+      await objects.delete([`keys/${pool.keyHash}.json`])
       const keys = await objects.list(poolDir(pool.poolId))
       for (let i = 0; i < keys.length; i += 1000) await objects.delete(keys.slice(i, i + 1000))
     },
 
-    /** Deletes every pool inactive for longer than INACTIVITY_MS. Returns how many were removed. */
+    /** Deletes every expired pool (see expiry.ts). Returns how many were removed. */
     async sweepExpired(now: number = Date.now()) {
       let removed = 0
       for (const pool of await store.listPools()) {
-        if (isExpired(pool.lastActivityAt, now)) {
+        if (isExpired(pool, await store.hasPhotos(pool.poolId), now)) {
           await store.deletePool(pool)
           removed++
         }

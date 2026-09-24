@@ -3,7 +3,7 @@ import type { RoundResult } from './scoring'
 export type LatLng = { lat: number; lng: number }
 
 /** What the browser may know about a photo before the guess. The image itself is fetched from
- *  `GET /api/photo/:id` with the play key (never a public URL). */
+ *  `GET /api/photo/:id` with the pool key (never a public URL). */
 export type PublicPhoto = {
   id: string
   width: number

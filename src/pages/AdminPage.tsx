@@ -1,20 +1,20 @@
 import { useState } from 'react'
-import { createPool, type PoolKeys } from '../game/api'
+import { createPool } from '../game/api'
 import { Button, Card, CenteredPage, Title } from '../components/layout'
 
-/** Create a pool with the admin code. Keys are shown exactly once. */
+/** Create a pool with the admin code. Its one key is shown exactly once. */
 export function AdminPage() {
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [keys, setKeys] = useState<PoolKeys | null>(null)
+  const [key, setKey] = useState<string | null>(null)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setBusy(true)
     setError(null)
     try {
-      setKeys(await createPool(code))
+      setKey((await createPool(code)).key)
       setCode('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
@@ -27,7 +27,7 @@ export function AdminPage() {
     <CenteredPage>
       <Card>
         <Title>Create a pool</Title>
-        {!keys ? (
+        {!key ? (
           <form onSubmit={submit} className="mt-5 space-y-4">
             <label className="block text-left">
               <span className="text-xs font-bold uppercase tracking-wide text-muted">Admin code</span>
@@ -47,15 +47,19 @@ export function AdminPage() {
         ) : (
           <div className="mt-5 space-y-4 text-left">
             <p className="rounded-xl bg-butter/40 px-3 py-2 text-sm font-semibold text-ink">
-              ⚠️ Save these now — they are shown only once and can't be recovered.
+              ⚠️ Save this key now — it's shown only once and can't be recovered.
             </p>
-            <KeyCard label="Upload key" hint="Put this in your iPhone Shortcut. Lets you add and delete photos." value={keys.uploadKey} />
-            <KeyCard label="Play key" hint="Share with players. Lets them play this pool only." value={keys.playKey} />
-            <p className="text-xs text-muted">
-              The pool and all its photos are deleted automatically after 3 days without any play, upload or delete.
-            </p>
-            <Button tone="quiet" onClick={() => setKeys(null)}>
-              Done
+            <KeyCard value={key} />
+            <ul className="space-y-1 text-xs text-muted">
+              <li>• Put it in your iPhone Shortcut to add photos, and share it with players.</li>
+              <li>• Anyone with the key can play, add and delete photos, and delete the pool.</li>
+              <li>• An empty pool is deleted 1 hour after it becomes empty. With photos, it's deleted after 3 days without any play, upload or delete.</li>
+            </ul>
+            <a href="/" className="block">
+              <Button tone="coral">Open this pool</Button>
+            </a>
+            <Button tone="quiet" onClick={() => setKey(null)}>
+              Create another
             </Button>
           </div>
         )}
@@ -64,7 +68,7 @@ export function AdminPage() {
   )
 }
 
-function KeyCard({ label, hint, value }: { label: string; hint: string; value: string }) {
+export function KeyCard({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
   const copy = async () => {
     try {
@@ -76,17 +80,14 @@ function KeyCard({ label, hint, value }: { label: string; hint: string; value: s
     }
   }
   return (
-    <div className="rounded-2xl bg-cream p-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-muted">{label}</p>
-          <p className="font-mono text-3xl font-extrabold tracking-[0.3em] text-ink select-all">{value}</p>
-        </div>
-        <button type="button" onClick={copy} className="h-11 shrink-0 rounded-xl border border-sand bg-white px-4 text-sm font-bold text-ink active:scale-95">
-          {copied ? 'Copied ✓' : 'Copy'}
-        </button>
+    <div className="flex items-center justify-between gap-3 rounded-2xl bg-cream p-3 text-left">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-wide text-muted">Pool key</p>
+        <p className="font-mono text-3xl font-extrabold tracking-[0.3em] text-ink select-all">{value}</p>
       </div>
-      <p className="mt-1 text-xs text-muted">{hint}</p>
+      <button type="button" onClick={copy} className="h-11 shrink-0 rounded-xl border border-sand bg-white px-4 text-sm font-bold text-ink active:scale-95">
+        {copied ? 'Copied ✓' : 'Copy'}
+      </button>
     </div>
   )
 }

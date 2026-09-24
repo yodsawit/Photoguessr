@@ -12,7 +12,7 @@ import { createGeocoder } from './geocode'
 import { MemoryObjects, type ObjectStore } from './objects'
 import { createPoolStore } from './poolStore'
 import { PoolService } from './pools'
-import { createR2Objects } from './r2'
+import { createR2Objects, resolveR2Endpoint } from './r2'
 
 const isProd = process.env.NODE_ENV === 'production'
 if (!isProd && existsSync('.env')) process.loadEnvFile('.env')
@@ -24,17 +24,25 @@ function fail(msg: string): never {
 }
 
 let objects: ObjectStore
-const r2Vars = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'] as const
-if (r2Vars.every((k) => env[k])) {
+// R2_API_TOKEN is not used: the S3 API authenticates with the access key id + secret.
+const r2Vars = ['R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'] as const
+let r2Endpoint: string | null = null
+try {
+  r2Endpoint = resolveR2Endpoint(env.R2_S3_ENDPOINT, env.R2_ACCOUNT_ID)
+} catch (err) {
+  fail(err instanceof Error ? err.message : 'Invalid R2_S3_ENDPOINT')
+}
+if (r2Endpoint && r2Vars.every((k) => env[k])) {
   objects = createR2Objects({
-    accountId: env.R2_ACCOUNT_ID!,
+    endpoint: r2Endpoint,
     accessKeyId: env.R2_ACCESS_KEY_ID!,
     secretAccessKey: env.R2_SECRET_ACCESS_KEY!,
     bucket: env.R2_BUCKET!,
   })
   console.log('storage: R2')
 } else {
-  if (isProd) fail(`Missing env: ${r2Vars.filter((k) => !env[k]).join(', ')}`)
+  const missing = [...(r2Endpoint ? [] : ['R2_S3_ENDPOINT or R2_ACCOUNT_ID']), ...r2Vars.filter((k) => !env[k])]
+  if (isProd) fail(`Missing env: ${missing.join(', ')}`)
   objects = new MemoryObjects()
   console.log('storage: in-memory (dev) — data is lost on restart')
 }
@@ -56,12 +64,19 @@ const clientIp = (c: Context) => {
   return (c.env as { incoming?: { socket?: { remoteAddress?: string } } })?.incoming?.socket?.remoteAddress ?? 'unknown'
 }
 
-const app = createApp({ pools, store, geocoder, adminCode: env.ADMIN_CODE ?? '', clientIp })
+let adminCode = env.ADMIN_CODE ?? ''
+if (!adminCode && !isProd) {
+  // Local dev convenience only: a throwaway code printed to YOUR terminal. Production requires ADMIN_CODE.
+  adminCode = randomBytes(6).toString('hex')
+  console.log(`dev admin code: ${adminCode}  (set ADMIN_CODE in .env to choose your own)`)
+}
+
+const app = createApp({ pools, store, geocoder, adminCode, clientIp })
 
 if (existsSync('dist/index.html')) {
   app.use('/assets/*', serveStatic({ root: './dist' }))
   app.use('*', serveStatic({ root: './dist' }))
-  // Missing build files are real 404s; other paths (/admin, /manage, ...) fall back to the app shell.
+  // Missing build files are real 404s; other paths (/admin, ...) fall back to the app shell.
   app.get('/assets/*', (c) => c.text('Not found', 404))
   app.get('*', serveStatic({ path: './dist/index.html' }))
 }

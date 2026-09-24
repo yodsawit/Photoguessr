@@ -14,12 +14,14 @@ services:
         value: "24"
       - key: NODE_ENV
         value: production
-      # HMAC pepper for pool keys. Generated once by Render. Changing it invalidates every key.
+      # HMAC pepper for pool keys. Use the SAME value as your local .env (same bucket).
+      # Changing it later invalidates every pool key.
       - key: KEY_PEPPER
-        generateValue: true
+        sync: false
       - key: ADMIN_CODE
         sync: false
-      - key: R2_ACCOUNT_ID
+      # https://<account-id>.r2.cloudflarestorage.com (or set R2_ACCOUNT_ID instead)
+      - key: R2_S3_ENDPOINT
         sync: false
       - key: R2_ACCESS_KEY_ID
         sync: false
