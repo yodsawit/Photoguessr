@@ -10,7 +10,7 @@ You need: your **pool key** (6 characters, from `/admin`) and your game URL, e.g
 ## Build it (Shortcuts app → + → new shortcut)
 
 1. Tap the **ⓘ** (Details) → turn on **Show in Share Sheet**. Set *Share Sheet Types* to **Images** only.
-2. At the top, *Receive* **Images** from **Share Sheet**. If there's no input, choose **Ask For Photos**.
+2. At the top, *Receive* **Images** from **Share Sheet**. If there's no input, choose **Ask For Photos** and turn on **Select Multiple**.
 3. Add **Repeat with Each** → item in **Shortcut Input**.
 4. Inside the repeat, add these actions in order:
    1. **Get Details of Images** → **Location** from *Repeat Item*.
@@ -20,16 +20,22 @@ You need: your **pool key** (6 characters, from `/admin`) and your game URL, e.g
    5. **Format Date** → *Date Taken*, Date Format **ISO 8601**, **Include ISO 8601 Time** on. Rename → `Taken`.
    6. **Resize Image** → *Repeat Item*, by **Longest Edge**, **1920**.
    7. **Convert Image** → *Resized Image* to **JPEG**, Quality **0.8**, **Preserve Metadata: OFF**.
-   8. **Get Contents of URL**:
-      - URL: `https://YOUR-SERVICE.onrender.com/api/photos`
+   8. **Get Contents of URL**. It must come **after** Convert Image; the order matters.
+      - URL: `https://YOUR-SERVICE.onrender.com/api/photos`. Include `https://`, or `http://` for a
+        local test such as `http://192.168.x.x:8787/api/photos`.
       - Method: **POST**
-      - Headers: `Authorization` = `Bearer ABC123` (your pool key after `Bearer `)
+      - Headers: `Authorization` = `Bearer ABC123` (the word `Bearer`, a space, then your pool key)
       - Request Body: **Form**
-        - `photo` → type **File** → *Converted Image*
-        - `lat` → Text → `Lat`
-        - `lng` → Text → `Lng`
-        - `takenAt` → Text → `Taken`
+        - `photo` → add it with **Add new field → File** (not Text!) → *Converted Image*
+        - `lat` → **Text** → `Lat`
+        - `lng` → **Text** → `Lng`
+        - `takenAt` → **Text** → `Taken`
+   9. **Show Result** → *Contents of URL*. Success shows `{"photoId": …}`; otherwise it shows the reason.
+      Remove it later if you don't want a popup per photo.
 5. After the repeat, add **Show Notification**: "Added to PhotoGuessr" (optional).
+
+**Alternative without form fields.** Set Request Body to **File** → *Converted Image*, and send the
+answer as headers instead: `X-Lat` = `Lat`, `X-Lng` = `Lng`, `X-Taken-At` = `Taken` (plus `Authorization`).
 
 ## Use it
 Photos → select photos → Share → **Add to PhotoGuessr**.
@@ -48,7 +54,11 @@ Photos → select photos → Share → **Add to PhotoGuessr**.
 ## Troubleshooting
 | Message | Meaning |
 |---|---|
-| `Invalid key` | Wrong pool key, or the pool was deleted/expired |
+| Nothing happens, pool stays empty | Shortcuts doesn't show server errors. Add **Show Result** after Get Contents of URL |
+| `Missing photo: … sent as Text …` | The `photo` form field is a Text field. Delete it and add it again with **Add new field → File** |
+| `Missing photo: no 'photo' field …` | The form field isn't named exactly `photo`, or Convert Image runs after the upload |
+| `couldn't convert from Rich Text to URL` | The URL is missing `http://` or `https://` |
+| `Invalid key` | Wrong pool key, `Bearer ` missing in the header, or the pool was deleted/expired |
 | `Too many wrong attempts` | 10 wrong keys from your network within a minute; wait a minute |
 | `Photo has no location` | The photo has no GPS (screenshots, downloaded images, location off) |
 | `Unsupported image` | The file isn't a photo the server can read |

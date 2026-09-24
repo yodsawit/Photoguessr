@@ -132,6 +132,37 @@ describe('one key does everything', () => {
     expect((await call('/api/rounds', { key })).status).toBe(401)
   })
 
+  it('explains a photo sent as text (iOS Shortcuts Text field) vs no photo at all', async () => {
+    const { call, createPool } = setup()
+    const key = await createPool()
+    const asText = new FormData()
+    asText.set('photo', 'IMG_0001.jpg')
+    asText.set('lat', '1')
+    asText.set('lng', '2')
+    const r1 = (await (await call('/api/photos', { method: 'POST', body: asText, key })).json()) as { error: string }
+    expect(r1.error).toMatch(/sent as Text.*File field/)
+    const none = new FormData()
+    none.set('lat', '1')
+    const r2 = (await (await call('/api/photos', { method: 'POST', body: none, key })).json()) as { error: string }
+    expect(r2.error).toMatch(/no 'photo' field/)
+  })
+
+  it('accepts a raw image body with lat/lng/date in headers (Shortcuts "Request Body: File")', async () => {
+    const { call, createPool, status } = setup()
+    const key = await createPool()
+    const img = await sharp({ create: { width: 300, height: 200, channels: 3, background: 'teal' } }).jpeg().toBuffer()
+    const res = await call('/api/photos', {
+      method: 'POST',
+      key,
+      body: new Uint8Array(img),
+      headers: { 'Content-Type': 'image/jpeg', 'X-Lat': '18.8018', 'X-Lng': '98.9672', 'X-Taken-At': '2024-09-28T11:10:56+07:00' },
+    })
+    expect(res.status).toBe(201)
+    expect(await status(key)).toMatchObject({ photoCount: 1, empty: false })
+    const empty = await call('/api/photos', { method: 'POST', key, body: new Uint8Array(), headers: { 'Content-Type': 'image/jpeg' } })
+    expect(((await empty.json()) as { error: string }).error).toMatch(/body is empty/)
+  })
+
   it('rejects bad photo ids and bad guesses', async () => {
     const { call, createPool } = setup()
     const key = await createPool()

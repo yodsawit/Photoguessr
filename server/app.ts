@@ -185,14 +185,30 @@ export function createApp(deps: AppDeps) {
 
   app.post('/api/photos', async (c) => {
     const { pool } = await auth(c)
-    const body = await c.req.parseBody()
-    const file = body.photo
-    if (!(file instanceof File)) throw new HttpError(400, 'Missing photo')
-    const processed = await processUpload(new Uint8Array(await file.arrayBuffer()), {
-      lat: body.lat,
-      lng: body.lng,
-      takenAt: body.takenAt,
-    })
+    let bytes: Uint8Array
+    let fields: { lat: unknown; lng: unknown; takenAt: unknown }
+    const type = c.req.header('Content-Type') ?? ''
+    if (type.startsWith('multipart/form-data') || type.startsWith('application/x-www-form-urlencoded')) {
+      const body = await c.req.parseBody()
+      const file = body.photo
+      if (!(file instanceof File)) {
+        // iOS Shortcuts: an image put into a *Text* form field arrives as a string, not a file.
+        throw new HttpError(
+          400,
+          typeof file === 'string'
+            ? "Missing photo: the 'photo' field was sent as Text. In the Shortcut, delete the photo field and add it again as a File field."
+            : "Missing photo: no 'photo' field in the form.",
+        )
+      }
+      bytes = new Uint8Array(await file.arrayBuffer())
+      fields = { lat: body.lat, lng: body.lng, takenAt: body.takenAt }
+    } else {
+      // Raw upload (Shortcuts "Request Body: File"): the image is the whole body; answer in headers.
+      bytes = new Uint8Array(await c.req.arrayBuffer())
+      if (bytes.length === 0) throw new HttpError(400, 'Missing photo: the request body is empty.')
+      fields = { lat: c.req.header('X-Lat'), lng: c.req.header('X-Lng'), takenAt: c.req.header('X-Taken-At') }
+    }
+    const processed = await processUpload(bytes, fields)
 
     const existing = await store.findBySha(pool.poolId, processed.sha256)
     if (existing && (await store.getAnswer(pool.poolId, existing))) return c.json({ duplicate: true, photoId: existing }, 200)
