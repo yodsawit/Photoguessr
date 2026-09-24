@@ -2,13 +2,10 @@ import type { RoundResult } from './scoring'
 
 export type LatLng = { lat: number; lng: number }
 
-/** One photo in the pool, produced by `scripts/build-pool.ts`. Server-only: holds the answer. */
-export type PoolPhoto = PublicPhoto & Answer
-
-/** What the browser may know about a photo before the guess. */
+/** What the browser may know about a photo before the guess. The image itself is fetched from
+ *  `GET /api/photo/:id` with the play key (never a public URL). */
 export type PublicPhoto = {
   id: string
-  src: string
   width: number
   height: number
 }

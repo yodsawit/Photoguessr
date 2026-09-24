@@ -5,6 +5,8 @@ import ClickSpark from './ui/ClickSpark'
 
 type Props = {
   photo: PublicPhoto
+  /** Local object URL of the photo (fetched with the play key). */
+  imageUrl: string
   opened: ReadonlySet<number>
   disabled: boolean
   onOpen: (index: number) => void
@@ -20,7 +22,7 @@ const KIND_CHIP = {
  * 4x4 hidden cards over the photo. Each opened card's back face shows its own slice of the image
  * via background-position, so hidden areas never render any photo pixels.
  */
-export function TileGrid({ photo, opened, disabled, onOpen }: Props) {
+export function TileGrid({ photo, imageUrl, opened, disabled, onOpen }: Props) {
   const aspect = photo.width / photo.height
 
   return (
@@ -66,7 +68,7 @@ export function TileGrid({ photo, opened, disabled, onOpen }: Props) {
                   style={
                     isOpen
                       ? {
-                          backgroundImage: `url(${photo.src})`,
+                          backgroundImage: `url(${imageUrl})`,
                           backgroundPosition: `${(c / (GRID - 1)) * 100}% ${(r / (GRID - 1)) * 100}%`,
                         }
                       : undefined

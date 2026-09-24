@@ -12,5 +12,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "scripts", "server", "src/game/types.ts", "src/game/scoring.ts", "src/types"]
+  "include": ["vite.config.ts", "scripts", "server", "sweeper", "src/game/types.ts", "src/game/scoring.ts", "src/types"]
 }

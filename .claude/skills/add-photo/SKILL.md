@@ -1,16 +1,17 @@
 ---
 name: add-photo
-description: Add a new photo (HEIC/JPG) to the game's photo pool and verify its GPS, date and place metadata.
+description: Add photos (HEIC/JPG) from this computer to a PhotoGuessr pool and verify they are playable, metadata-free and have location/place/date.
 allowed-tools: Bash Read
 ---
 
-# Add a photo to the pool
+# Add photos to a pool (from a computer)
 
-1. Copy the source file into `photos/` (keep the original name).
-2. Run `npm run pool`.
-3. Read `server/data/pool.json` and confirm the new entry has `lat`, `lng`, `takenAt`,
-   `district`, `province`. Photos without GPS are skipped by the script — tell the user.
-4. Confirm the served copy has no EXIF:
-   `node -e "import('exifr').then(async m=>console.log(await m.default.gps('public/pool/<id>.jpg')))"`
-   must print `undefined`.
-5. Report the entry (place + date) to the user. Never commit `photos/`.
+Phones use the iPhone Shortcut (`docs/iphone-shortcut.md`). From a computer:
+
+1. Put the files anywhere (e.g. `photos/`, which is gitignored because originals contain GPS).
+2. Run `npm run upload -- --key <UPLOAD_KEY> [--url https://<service>.onrender.com] <files...>`
+   (default URL is the local dev server). It reads GPS/date locally, sends a 1920 px JPEG with no
+   metadata; photos without GPS are skipped with a message — tell the user which.
+3. Verify with the play key: `GET /api/rounds?count=20` lists the photo (id/width/height only) and
+   `GET /api/photo/<id>` returns `image/webp`; check `sharp(...).metadata().exif` is undefined.
+4. Never print or log the keys back to the user beyond what they gave you; never commit `photos/`.

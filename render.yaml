@@ -1,0 +1,32 @@
+# Render Blueprint: Render dashboard -> New -> Blueprint -> pick this repo.
+# Secrets marked `sync: false` are entered by you in the Render dashboard (never committed).
+services:
+  - type: web
+    name: photoguessr
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      # HMAC pepper for pool keys. Generated once by Render. Changing it invalidates every key.
+      - key: KEY_PEPPER
+        generateValue: true
+      - key: ADMIN_CODE
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        value: photoguessr
+      # Contact for OpenStreetMap Nominatim's usage policy (e.g. an email). Only sent to Nominatim.
+      - key: NOMINATIM_CONTACT
+        sync: false

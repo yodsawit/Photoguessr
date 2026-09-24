@@ -1,23 +1,52 @@
 import type { GuessRequest, GuessResponse, PublicPhoto } from './types'
 
-async function json<T>(res: Response): Promise<T> {
+/** Keys travel only in the Authorization header — never in URLs. */
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message)
+  }
+}
+
+async function call<T>(path: string, init: RequestInit & { key?: string } = {}): Promise<T> {
+  const headers = new Headers(init.headers)
+  if (init.key) headers.set('Authorization', `Bearer ${init.key}`)
+  let res: Response
+  try {
+    res = await fetch(path, { ...init, headers })
+  } catch {
+    throw new ApiError(0, "Can't reach the game server")
+  }
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null
-    throw new Error(body?.error ?? `Request failed (${res.status})`)
+    throw new ApiError(res.status, body?.error ?? `Request failed (${res.status})`)
   }
   return res.json() as Promise<T>
 }
 
-export async function fetchRounds(count: number): Promise<PublicPhoto[]> {
-  return json(await fetch(`/api/rounds?count=${count}`))
+export const KEY_PATTERN = /^[A-Z0-9]{6}$/
+export const normalizeKey = (s: string) => s.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 6)
+
+// ---- player ----
+export const fetchRounds = (key: string, count: number) => call<PublicPhoto[]>(`/api/rounds?count=${count}`, { key })
+
+export const postGuess = (key: string, req: GuessRequest) =>
+  call<GuessResponse>('/api/guess', { key, method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) })
+
+/** Downloads a photo with the play key and returns a local object URL (caller must revoke it). */
+export async function fetchPhotoUrl(key: string, photoId: string, signal?: AbortSignal): Promise<string> {
+  const res = await fetch(`/api/photo/${photoId}`, { headers: { Authorization: `Bearer ${key}` }, signal })
+  if (!res.ok) throw new ApiError(res.status, 'Could not load the photo')
+  return URL.createObjectURL(await res.blob())
 }
 
-export async function postGuess(req: GuessRequest): Promise<GuessResponse> {
-  return json(
-    await fetch('/api/guess', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req),
-    }),
-  )
-}
+// ---- owner ----
+export type PoolKeys = { uploadKey: string; playKey: string }
+export type PoolStatus = { photoCount: number; lastActivityAt: string; expiresAt: string }
+
+export const createPool = (adminCode: string) =>
+  call<PoolKeys>('/api/pools', { method: 'POST', headers: { 'X-Admin-Code': adminCode } })
+export const fetchPoolStatus = (uploadKey: string) => call<PoolStatus>('/api/pool', { key: uploadKey })
+export const deletePool = (uploadKey: string) => call<{ deleted: true }>('/api/pool', { key: uploadKey, method: 'DELETE' })

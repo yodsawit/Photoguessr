@@ -1,6 +1,6 @@
 # PhotoGuessr — project rules
 
-GeoGuessr-style browser game played on a static pool of the owner's own photos.
+GeoGuessr-style browser game played on private, auto-expiring pools of the owner's own photos.
 
 ## UI rules (MANDATORY — do not forget)
 - UI components/inspiration come **only** from these free sources:
@@ -25,31 +25,43 @@ GeoGuessr-style browser game played on a static pool of the owner's own photos.
 - Result: full photo, both pins + line, distance, district + province (English), photo date, score.
 - Currently 1 round per game (`ROUNDS` in `src/App.tsx`).
 
-## Photo pipeline
-- Raw photos go in `photos/` (gitignored — they contain GPS). `npm run pool` runs
-  `scripts/build-pool.ts`: reads EXIF (exifr), converts HEIC -> JPEG, resizes, **strips all
-  metadata**, reverse-geocodes via Nominatim (cached in `scripts/.geocache.json`), writes
-  `public/pool/<id>.jpg` + `server/data/pool.json`.
-- Never ship a served image with EXIF.
-- **Answers never reach the client before the guess.** The browser only gets `PublicPhoto`
-  (id, src, width, height) from `GET /api/rounds`; `POST /api/guess` scores server-side and
-  reveals the `Answer`. API lives in `server/api.ts`, mounted in Vite dev + preview. Never import
-  `server/` or the pool JSON from `src/`. `server.fs.deny` blocks `server/`, `scripts/`, `photos/`.
-- `public/pool/` and `server/data/` are gitignored; regenerate with `npm run pool`.
-- Known limitation: the full image is still sent, so a player could reveal tiles via devtools.
+## Architecture (v2: private expiring pools)
+- **Render** runs `server/index.ts` (Hono): serves `dist/` + `/api/*`. **R2** bucket `photoguessr`
+  stores everything; no database. **Cloudflare Worker** `photoguessr-sweeper` (`sweeper/`, hourly
+  cron) deletes pools inactive > 3 days. Deploy notes: `docs/deploy.md`.
+- **Pools:** created at `/admin` with `ADMIN_CODE`. Each has an **upload key** (iPhone Shortcut,
+  `/manage`) and a **play key** (players). Keys: 6 chars `A-Z0-9`, case-insensitive, stored only
+  as `HMAC(KEY_PEPPER, key)`. Wrong key/admin attempts: 10/min/IP, then the IP waits (429).
+- **Expiry:** every play/upload/delete updates `lastActivityAt`; pool + keys + photos + answers are
+  deleted 72 h after it (on access, by the server's hourly sweep, and by the sweeper Worker).
+- **Photos:** the iPhone Shortcut (`docs/iphone-shortcut.md`) or `npm run upload` sends a 1920 px
+  JPEG + lat/lng/takenAt. The server ALWAYS re-encodes to WebP q80 <= 1920 px with no metadata
+  (`server/ingest.ts`), dedups by sha256, geocodes via a 1 req/s Nominatim queue.
+- **Layout** (single source of truth: `server/poolStore.ts`, shared with the sweeper):
+  `keys/<hash>.json`, `pools/<id>/pool.json`, `pools/<id>/photos/<photoId>.{webp,json}`, `pools/<id>/hashes/<sha>`.
+- **Module seams / tests:** `ObjectStore` (Memory | S3-R2 | R2 binding) → `poolStore` → `PoolService`
+  (keys/auth/expiry) → `createApp` routes. Tests use `MemoryObjects` + `app.request`.
 
-## Stack & commands
-Vite + React 19 + TS + Tailwind v4 + motion + react-leaflet (OpenStreetMap tiles; CARTO now needs an API key), Vitest.
-- `npm run dev` / `npm run build` / `npm test` / `npm run typecheck` / `npm run pool`
+## Privacy rules (MANDATORY)
+- Answers (GPS, place, date) leave the server ONLY in the `/api/guess` response for that photo.
+- Keys only in `Authorization: Bearer` / `X-Admin-Code` headers, never in URLs. Photos are fetched
+  with the key into blob URLs.
+- Logs: method + route pattern + status + ms only — never keys, ids, bodies, coordinates, IPs.
+- Never log or return error messages from unknown errors; never write uploads to local disk.
+- Never import `server/` from `src/`. Never commit `.env`, `photos/`, `dist*/`.
+- Known limitation: the full image is sent to players, so tiles can be revealed via devtools.
 
 ## Project skills (`.claude/skills/`)
 - Project: `tasks`, `add-photo`, `add-ui-component`, `playtest`.
 - AI Hero (MIT, see `.claude/skills/SOURCES.md`): `/grill-with-docs` (design interview that writes
   `CONTEXT.md` + `docs/adr/`), `tdd` (red → green, confirm seams first), `/improve-codebase-architecture`
   (HTML report of deepening opportunities). Support skills: `grilling`, `domain-modeling`, `codebase-design`.
-- Scoring/rules changes should go test-first via `tdd`; the natural seams are `src/game/scoring.ts`
-  (pure rules) and `useRound` (round lifecycle).
+- Changes go test-first via `tdd`; seams: `src/game/scoring.ts` (rules), `useRound` (round lifecycle),
+  `server/pools.ts` (keys/expiry), `server/ingest.ts` (photo cleaning), `server/app.ts` (routes).
 
-## Task tracking
-Use the built-in task tools (TaskCreate/TaskUpdate/TodoWrite) if present in the session.
-Otherwise track work in `TASKS.md` via the `tasks` skill, updating it live, not at the end.
+## Task tracking (MANDATORY for big tasks)
+- Any big task (3+ steps, a build, a multi-phase change): **create the todo list with the task
+  tool (TaskCreate/TaskUpdate or TodoWrite) BEFORE starting work**, one item per step, and mark
+  items in_progress/completed live as each step starts/finishes — never retroactively.
+- If no task tool is in the session's toolset, say so once, then track the same list in
+  `TASKS.md` via the `tasks` skill (and restate progress in replies). Don't skip tracking.

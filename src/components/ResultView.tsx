@@ -8,6 +8,7 @@ import CountUp from './ui/CountUp'
 
 type Props = {
   photo: PublicPhoto
+  imageUrl: string
   result: GuessResponse
   isLastRound: boolean
   onNext: () => void
@@ -25,7 +26,7 @@ function FitBoth({ answer, guess }: { answer: Answer; guess: GuessResponse['gues
   return null
 }
 
-export function ResultView({ photo, result, isLastRound, onNext }: Props) {
+export function ResultView({ photo, imageUrl, result, isLastRound, onNext }: Props) {
   const { guess, distanceKm, baseScore, multiplier, finalScore, openedCount, timedOut, answer } = result
   const noScoreReason = !guess ? 'No pin dropped in time' : openedCount === 0 ? 'Time ran out before opening a card' : null
 
@@ -33,7 +34,7 @@ export function ResultView({ photo, result, isLastRound, onNext }: Props) {
     <div className="mx-auto grid w-full max-w-6xl gap-4 px-4 pb-8 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] md:gap-6">
       <figure className="overflow-hidden rounded-3xl bg-white p-2 shadow-[0_10px_30px_-12px_rgba(120,90,60,0.35)] ring-1 ring-sand">
         <img
-          src={photo.src}
+          src={imageUrl}
           alt={`Photo taken in ${answer.district}, ${answer.province}`}
           width={photo.width}
           height={photo.height}

@@ -1,0 +1,9 @@
+// Reference config for the deployed sweeper (deployed via the Cloudflare API; `npx wrangler deploy -c sweeper/wrangler.jsonc` also works).
+{
+  "name": "photoguessr-sweeper",
+  "main": "worker.ts",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": false,
+  "triggers": { "crons": ["0 * * * *"] },
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "photoguessr" }]
+}

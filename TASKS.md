@@ -1,22 +1,20 @@
 # Tasks
 
 ## Now
-- [ ] Re-check animations + hover map in a visible Chrome window (automated tab was hidden, so rAF/transitions were paused)
-
-## Next
-- [ ] More rounds (raise ROUNDS in src/App.tsx) once the pool has more photos
-- [ ] Optional: a 21st.dev component (none used yet)
-- [ ] Production hosting: the API only runs in `vite dev`/`vite preview`; a real host needs a Node server or serverless function around `server/api.ts`
+- [ ] You: create R2 API token (Object Read & Write, bucket photoguessr) -> Render env + local .env
+- [ ] You: Render -> New -> Blueprint -> yodsawit/Photoguessr; set ADMIN_CODE, R2_*, NOMINATIM_CONTACT
+- [ ] Verify on real R2 + Render: E2E, two phones at once, sweeper deletes a 4-day-old test pool
+- [ ] Re-check animations + hover map in a visible Chrome window
+- [ ] More rounds (raise ROUNDS in src/App.tsx)
 
 ## Done
+- [x] v2 step 8: iPhone Shortcut guide, deploy guide, CLAUDE.md/skills updated, committed + pushed (2026-09-24)
+- [x] v2 step 7: R2 bucket photoguessr (APAC, private) + photoguessr-sweeper Worker (hourly cron, no public URL) (2026-09-24)
+- [x] v2 step 5: join/admin/manage screens, keyed blob photo fetch; browser E2E passed; fixed OSM Referer + /assets 404 (2026-09-24)
+- [x] v2 step 6: npm run upload CLI (1920px JPEG q80, no metadata); build-pool retired (2026-09-24)
+- [x] v2 step 4: R2 adapter, server/index.ts, esbuild bundle, render.yaml; smoke test with real HEIC passed (2026-09-24)
+- [x] v2 step 3: Hono routes + limiter + headers + privacy logger, 12 route tests (2026-09-24)
+- [x] v2 step 2: ingest.ts (WebP 1920 q80, metadata stripped, dedup, EXIF fallback) + geocode queue, 7 tests (2026-09-24)
+- [x] v2 step 1: ObjectStore/PoolStore + MemoryObjects; pools.ts keys/auth/expiry, 11 tests (2026-09-24)
 - [x] Answers server-side (API), flat card color, pool folders gitignored (2026-09-24)
-- [x] Chrome playtest: rules, pin, result, timeout, game over, 375px layout (2026-09-24)
-- [x] Add AI Hero skills: grill-with-docs, tdd, improve-codebase-architecture (+ deps) (2026-09-24)
-- [x] Styling pass with approved UI components + credits, mobile layout (2026-09-24)
-- [x] ResultView (2 pins, line, place, date, score) (2026-09-24)
-- [x] GuessMap (Leaflet, pin, Guess; bottom sheet on mobile) (2026-09-24)
-- [x] TileGrid (flip cards, multiplier) (2026-09-24)
-- [x] useRound state machine + Timer (2026-09-24)
-- [x] scoring.ts + Vitest tests (2026-09-24)
-- [x] Photo pipeline + pool.json for the test photo (2026-09-24)
-- [x] Scaffold Vite React-TS + Tailwind v4, CLAUDE.md, .claude/, TASKS.md, CREDITS.md, git init (2026-09-24)
+- [x] Initial build: game, pipeline, UI, tooling, playtest (2026-09-24)

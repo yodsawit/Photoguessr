@@ -1,40 +1,121 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { motion } from 'motion/react'
-import { fetchRounds, postGuess } from './game/api'
+import { ApiError, fetchPhotoUrl, fetchRounds, KEY_PATTERN, postGuess } from './game/api'
 import { multiplier, ROUND_SECONDS, TILE_VALUE } from './game/scoring'
-import type { PublicPhoto } from './game/types'
+import type { GuessRequest, PublicPhoto } from './game/types'
 import { useRound } from './game/useRound'
 import { GuessMap } from './components/GuessMap'
+import { KeyInput } from './components/KeyInput'
+import { Button, Card, CenteredPage, Shell, Title } from './components/layout'
 import { MultiplierBadge } from './components/MultiplierBadge'
 import { ResultView } from './components/ResultView'
 import { TileGrid } from './components/TileGrid'
 import { Timer } from './components/Timer'
-import { DotBackground } from './components/ui/DotBackground'
 import CountUp from './components/ui/CountUp'
+import { AdminPage } from './pages/AdminPage'
+import { ManagePage } from './pages/ManagePage'
 
 /** Rounds per game. 1 for now while testing. */
 const ROUNDS = 1
+const PLAY_KEY_STORAGE = 'photoguessr.playKey'
+
+/** Remembering the play key is a per-device convenience; everything works without storage. */
+const rememberedKey = {
+  get: () => {
+    try {
+      return localStorage.getItem(PLAY_KEY_STORAGE) ?? ''
+    } catch {
+      return ''
+    }
+  },
+  set: (v: string) => {
+    try {
+      if (v) localStorage.setItem(PLAY_KEY_STORAGE, v)
+      else localStorage.removeItem(PLAY_KEY_STORAGE)
+    } catch {
+      /* private mode: key just isn't remembered */
+    }
+  },
+}
+
+export default function App() {
+  const path = window.location.pathname.replace(/\/+$/, '')
+  if (path === '/admin') return <AdminPage />
+  if (path === '/manage') return <ManagePage />
+  return <PlayPage />
+}
+
+function PlayPage() {
+  const [playKey, setPlayKey] = useState(rememberedKey.get)
+  const [joinError, setJoinError] = useState<string | null>(null)
+
+  const join = (key: string) => {
+    rememberedKey.set(key)
+    setJoinError(null)
+    setPlayKey(key)
+  }
+  const leave = useCallback((reason: string | null = null) => {
+    rememberedKey.set('')
+    setJoinError(reason)
+    setPlayKey('')
+  }, [])
+
+  if (!playKey) return <JoinPage error={joinError} onJoin={join} />
+  return <Game key={playKey} playKey={playKey} onLeave={leave} />
+}
+
+function JoinPage({ error, onJoin }: { error: string | null; onJoin: (key: string) => void }) {
+  const [key, setKey] = useState('')
+  return (
+    <CenteredPage>
+      <Card>
+        <p className="text-4xl" aria-hidden>
+          📸
+        </p>
+        <Title>Join a photo pool</Title>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (KEY_PATTERN.test(key)) onJoin(key)
+          }}
+          className="mt-5 space-y-4"
+        >
+          <KeyInput label="Play key" value={key} onChange={setKey} autoFocus />
+          {error && <p className="rounded-xl bg-peach/25 px-3 py-2 text-sm font-semibold text-coral">{error}</p>}
+          <Button type="submit" tone="coral" disabled={!KEY_PATTERN.test(key)}>
+            Play
+          </Button>
+        </form>
+      </Card>
+    </CenteredPage>
+  )
+}
 
 type Load = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ready'; photos: PublicPhoto[] }
 
-export default function App() {
+function Game({ playKey, onLeave }: { playKey: string; onLeave: (reason?: string | null) => void }) {
   const [gameKey, setGameKey] = useState(0)
   const [load, setLoad] = useState<Load>({ state: 'loading' })
   const [roundIndex, setRoundIndex] = useState(0)
   const [total, setTotal] = useState(0)
   const [gameOver, setGameOver] = useState(false)
 
-  // The server picks the rounds and sends only id + image; answers stay server-side until a guess.
+  // The server picks the rounds and sends only id + size; answers stay server-side until a guess.
   useEffect(() => {
     let cancelled = false
     setLoad({ state: 'loading' })
-    fetchRounds(ROUNDS)
+    fetchRounds(playKey, ROUNDS)
       .then((photos) => !cancelled && setLoad({ state: 'ready', photos }))
-      .catch((err: Error) => !cancelled && setLoad({ state: 'error', message: err.message }))
+      .catch((err: unknown) => {
+        if (cancelled) return
+        if (err instanceof ApiError && (err.status === 401 || err.status === 404)) onLeave('That play key is not valid, or the pool has expired.')
+        else if (err instanceof ApiError && err.status === 429) setLoad({ state: 'error', message: 'Too many wrong keys from this network. Wait a minute and try again.' })
+        else setLoad({ state: 'error', message: err instanceof Error ? err.message : 'Something went wrong' })
+      })
     return () => {
       cancelled = true
     }
-  }, [gameKey])
+  }, [gameKey, playKey, onLeave])
 
   const playAgain = () => {
     setGameKey((k) => k + 1)
@@ -45,28 +126,32 @@ export default function App() {
 
   if (load.state !== 'ready' || load.photos.length === 0) {
     return (
-      <Shell>
-        <main className="flex flex-1 items-center justify-center px-4">
-          <Card>
-            {load.state === 'loading' && <p className="font-bold text-muted">Loading photos…</p>}
-            {load.state === 'error' && (
-              <>
-                <h1 className="text-2xl font-extrabold">Couldn't reach the game server</h1>
-                <p className="mt-2 text-sm text-muted">{load.message}</p>
-                <PrimaryButton onClick={playAgain}>Try again</PrimaryButton>
-              </>
-            )}
-            {load.state === 'ready' && (
-              <>
-                <h1 className="text-2xl font-extrabold">No photos yet</h1>
-                <p className="mt-2 text-muted">
-                  Add photos to <code>photos/</code> and run <code>npm run pool</code>.
-                </p>
-              </>
-            )}
-          </Card>
-        </main>
-      </Shell>
+      <CenteredPage>
+        <Card>
+          {load.state === 'loading' && <p className="font-bold text-muted">Loading photos…</p>}
+          {load.state === 'error' && (
+            <>
+              <h1 className="text-2xl font-extrabold">Couldn't load the game</h1>
+              <p className="mt-2 text-sm text-muted">{load.message}</p>
+              <Button className="mt-6" onClick={playAgain}>
+                Try again
+              </Button>
+            </>
+          )}
+          {load.state === 'ready' && (
+            <>
+              <h1 className="text-2xl font-extrabold">No photos yet</h1>
+              <p className="mt-2 text-muted">This pool is empty. The owner can add photos from their iPhone.</p>
+              <Button className="mt-6" onClick={playAgain}>
+                Check again
+              </Button>
+            </>
+          )}
+          <Button tone="quiet" className="mt-3" onClick={() => onLeave()}>
+            Use another key
+          </Button>
+        </Card>
+      </CenteredPage>
     )
   }
 
@@ -82,22 +167,52 @@ export default function App() {
       {gameOver ? (
         <GameOver total={total} rounds={photos.length} onPlayAgain={playAgain} />
       ) : (
-        <Round key={`${gameKey}-${roundIndex}`} photo={photos[roundIndex]} roundNo={roundIndex + 1} rounds={photos.length} onDone={next} />
+        <Round
+          key={`${gameKey}-${roundIndex}`}
+          playKey={playKey}
+          photo={photos[roundIndex]}
+          roundNo={roundIndex + 1}
+          rounds={photos.length}
+          onDone={next}
+          onLeave={() => onLeave()}
+        />
       )}
     </Shell>
   )
 }
 
-function Round({ photo, roundNo, rounds, onDone }: { photo: PublicPhoto; roundNo: number; rounds: number; onDone: (score: number) => void }) {
-  const round = useRound(photo, postGuess)
-  const [imgReady, setImgReady] = useState(false)
+type RoundProps = {
+  playKey: string
+  photo: PublicPhoto
+  roundNo: number
+  rounds: number
+  onDone: (score: number) => void
+  onLeave: () => void
+}
 
-  // Preload so the timer never starts on a photo that is still downloading.
+function Round({ playKey, photo, roundNo, rounds, onDone, onLeave }: RoundProps) {
+  const grade = useCallback((req: GuessRequest) => postGuess(playKey, req), [playKey])
+  const round = useRound(photo, grade)
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [imageError, setImageError] = useState(false)
+
+  // Download the photo with the play key before the timer can start; free it on unmount.
   useEffect(() => {
-    const img = new Image()
-    img.onload = () => setImgReady(true)
-    img.src = photo.src
-  }, [photo.src])
+    const ctrl = new AbortController()
+    let url: string | null = null
+    fetchPhotoUrl(playKey, photo.id, ctrl.signal)
+      .then((u) => {
+        url = u
+        setImageUrl(u)
+      })
+      .catch(() => {
+        if (!ctrl.signal.aborted) setImageError(true)
+      })
+    return () => {
+      ctrl.abort()
+      if (url) URL.revokeObjectURL(url)
+    }
+  }, [playKey, photo.id])
 
   return (
     <>
@@ -108,6 +223,11 @@ function Round({ photo, roundNo, rounds, onDone }: { photo: PublicPhoto; roundNo
           </h1>
           <p className="text-xs font-semibold text-muted">
             Round {roundNo} / {rounds}
+            {round.phase === 'ready' && (
+              <button type="button" onClick={onLeave} className="ml-2 underline decoration-dotted underline-offset-2 hover:text-ink">
+                change pool
+              </button>
+            )}
           </p>
         </div>
         {round.phase === 'playing' && (
@@ -119,34 +239,28 @@ function Round({ photo, roundNo, rounds, onDone }: { photo: PublicPhoto; roundNo
       </header>
 
       {/* Enter-only animations: never gate a phase change (and the running timer) on an exit animation. */}
-        {round.phase === 'ready' && (
-          <motion.main key="ready" {...fade} className="flex flex-1 items-center justify-center px-4 pb-10">
-            <ReadyCard loading={!imgReady} onStart={round.start} />
-          </motion.main>
-        )}
+      {round.phase === 'ready' && (
+        <motion.main key="ready" {...fade} className="flex flex-1 items-center justify-center px-4 pb-10">
+          <ReadyCard loading={!imageUrl} failed={imageError} onStart={round.start} />
+        </motion.main>
+      )}
 
-        {(round.phase === 'playing' || round.phase === 'submitting') && (
-          <>
-            <motion.main key="playing" {...fade} className="flex-1 px-3 pb-36 md:px-4 md:pb-8">
-              <TileGrid photo={photo} opened={round.opened} disabled={round.phase !== 'playing'} onOpen={round.openTile} />
-              {round.phase === 'submitting' && <SubmittingToast error={round.error} onRetry={round.retry} />}
-            </motion.main>
-            {/* Outside the animated <main>: a transformed ancestor would re-anchor this fixed panel. */}
-            <GuessMap
-              pin={round.pin}
-              openedCount={round.opened.size}
-              canGuess={round.canGuess}
-              onPin={round.placePin}
-              onGuess={round.submit}
-            />
-          </>
-        )}
-
-        {round.phase === 'result' && round.result && (
-          <motion.main key="result" {...fade} className="flex-1">
-            <ResultView photo={photo} result={round.result} isLastRound={roundNo === rounds} onNext={() => onDone(round.result!.finalScore)} />
+      {(round.phase === 'playing' || round.phase === 'submitting') && imageUrl && (
+        <>
+          <motion.main key="playing" {...fade} className="flex-1 px-3 pb-36 md:px-4 md:pb-8">
+            <TileGrid photo={photo} imageUrl={imageUrl} opened={round.opened} disabled={round.phase !== 'playing'} onOpen={round.openTile} />
+            {round.phase === 'submitting' && <SubmittingToast error={round.error} onRetry={round.retry} />}
           </motion.main>
-        )}
+          {/* Outside the animated <main>: a transformed ancestor would re-anchor this fixed panel. */}
+          <GuessMap pin={round.pin} openedCount={round.opened.size} canGuess={round.canGuess} onPin={round.placePin} onGuess={round.submit} />
+        </>
+      )}
+
+      {round.phase === 'result' && round.result && imageUrl && (
+        <motion.main key="result" {...fade} className="flex-1">
+          <ResultView photo={photo} imageUrl={imageUrl} result={round.result} isLastRound={roundNo === rounds} onNext={() => onDone(round.result!.finalScore)} />
+        </motion.main>
+      )}
     </>
   )
 }
@@ -157,7 +271,7 @@ const fade = {
   transition: { duration: 0.25 },
 }
 
-function ReadyCard({ loading, onStart }: { loading: boolean; onStart: () => void }) {
+function ReadyCard({ loading, failed, onStart }: { loading: boolean; failed: boolean; onStart: () => void }) {
   return (
     <Card>
       <p className="text-4xl" aria-hidden>
@@ -173,14 +287,9 @@ function ReadyCard({ loading, onStart }: { loading: boolean; onStart: () => void
         <li>📍 Drop a pin on the map and guess. Closer = more points.</li>
         <li>⏱️ You have {ROUND_SECONDS} seconds. At zero your pin is sent automatically.</li>
       </ul>
-      <button
-        type="button"
-        onClick={onStart}
-        disabled={loading}
-        className="mt-6 h-12 w-full rounded-2xl bg-coral font-bold text-white shadow-sm transition active:scale-[0.98] hover:brightness-105 disabled:opacity-60"
-      >
-        {loading ? 'Loading photo…' : 'Start round'}
-      </button>
+      <Button tone="coral" className="mt-6" onClick={onStart} disabled={loading || failed}>
+        {failed ? "Couldn't load the photo" : loading ? 'Loading photo…' : 'Start round'}
+      </Button>
     </Card>
   )
 }
@@ -200,13 +309,9 @@ function GameOver({ total, rounds, onPlayAgain }: { total: number; rounds: numbe
           <CountUp to={total} duration={1.2} separator="," />
         </p>
         <p className="text-xs font-bold uppercase tracking-wide text-muted">total points</p>
-        <button
-          type="button"
-          onClick={onPlayAgain}
-          className="mt-6 h-12 w-full rounded-2xl bg-sage-deep font-bold text-white shadow-sm transition active:scale-[0.98] hover:brightness-105"
-        >
+        <Button className="mt-6" onClick={onPlayAgain}>
           Play again
-        </button>
+        </Button>
       </Card>
     </main>
   )
@@ -225,35 +330,6 @@ function SubmittingToast({ error, onRetry }: { error: string | null; onRetry: ()
       ) : (
         <span className="text-muted">Checking your guess…</span>
       )}
-    </div>
-  )
-}
-
-function PrimaryButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="mt-6 h-12 w-full rounded-2xl bg-sage-deep font-bold text-white shadow-sm transition active:scale-[0.98] hover:brightness-105"
-    >
-      {children}
-    </button>
-  )
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-dvh flex-col">
-      <DotBackground />
-      {children}
-    </div>
-  )
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="w-full max-w-md rounded-3xl border border-sand bg-white/90 p-6 text-center shadow-[0_20px_50px_-20px_rgba(120,90,60,0.35)] backdrop-blur-sm">
-      {children}
     </div>
   )
 }
