@@ -258,6 +258,31 @@ describe('games and album high score', () => {
     expect((await g(r.photos[1].id, r.gameId)).game).toBeUndefined() // finished game can't be scored again
   })
 
+  it('the admin can reset the high score of one album (admin code + album key)', async () => {
+    const { call, createPool, upload, status, objects } = setup()
+    const key = await createPool()
+    const other = await createPool()
+    for (const k of [key, other]) {
+      await upload(k, at(18.8), 10)
+      const r = (await (await call('/api/rounds', { key: k })).json()) as Rounds
+      await call('/api/guess', { method: 'POST', key: k, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: r.photos[0].id, gameId: r.gameId, guess: { lat: 18.8, lng: 98.9672 }, opened: [0], timedOut: false }) })
+    }
+    expect(await status(key)).toMatchObject({ highScore: { total: 115 } })
+
+    const reset = (headers: Record<string, string>, k?: string) => call('/api/highscore/reset', { method: 'POST', headers, key: k })
+    expect((await reset({}, key)).status).toBe(401) // album key alone is not enough
+    expect((await reset({ 'X-Admin-Code': 'nope' }, key)).status).toBe(401)
+    expect((await reset({ 'X-Admin-Code': ADMIN })).status).toBe(401) // which album?
+    expect((await reset({ 'X-Admin-Code': ADMIN }, 'ZZZZZZ')).status).toBe(401)
+    const ok = await reset({ 'X-Admin-Code': ADMIN }, key.toLowerCase())
+    expect(ok.status).toBe(200)
+    expect(await ok.json()).toEqual({ reset: true, previous: { total: 115, rounds: 1 } })
+    expect(await status(key)).toMatchObject({ highScore: null })
+    expect(objects.keys().filter((k) => k.endsWith('highscore.json'))).toHaveLength(1) // the other album's stays
+    expect(await status(other)).toMatchObject({ highScore: { total: 115 } })
+    expect(await (await reset({ 'X-Admin-Code': ADMIN }, key)).json()).toEqual({ reset: true, previous: null })
+  })
+
   it('deleting the album removes its high score', async () => {
     const { call, createPool, upload, objects } = setup()
     const key = await createPool()

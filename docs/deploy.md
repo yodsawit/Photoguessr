@@ -26,6 +26,11 @@ Render dashboard → **New** → **Blueprint** → connect GitHub → `yodsawit/
 | `NOMINATIM_CONTACT` | Your email. Sent only to OpenStreetMap Nominatim, as its usage policy asks |
 | `SURPRISE_KEY` / `SURPRISE_ALBUM_KEY` | Optional birthday surprise, see below. Leave empty to turn it off |
 
+### Reset an album's high score
+Needs the admin code **and** that album's key, which goes in the header and never in the URL:
+`curl -X POST -H "X-Admin-Code: $ADMIN_CODE" -H "Authorization: Bearer <ALBUM_KEY>" https://<app>/api/highscore/reset`
+It replies with `{"reset": true, "previous": {...}}`. The next finished game sets a new high score.
+
 ### Birthday surprise (optional)
 `SURPRISE_KEY` is an extra key that plays the photos of the album `SURPRISE_ALBUM_KEY`. It is play-only:
 no uploads or deletes, and it doesn't count toward the high score. A game counts as played at its first

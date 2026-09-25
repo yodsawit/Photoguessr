@@ -350,6 +350,15 @@ export function createApp(deps: AppDeps) {
     return c.json({ ...result, answer: { lat, lng, takenAt, district, province }, ...(game && { game }) })
   })
 
+  /** Admin: clears one album's high score. Needs the admin code AND that album's own key (header, never URL). */
+  app.post('/api/highscore/reset', async (c) => {
+    adminOnly(c)
+    const { pool } = await ownerAuth(c)
+    const previous = await store.getHighScore(pool.poolId)
+    if (previous) await store.deleteHighScore(pool.poolId)
+    return c.json({ reset: true, previous: previous && { total: previous.total, rounds: previous.rounds } })
+  })
+
   // ---- birthday surprise (see PoolService surprise config) ------------------------------------
 
   app.get('/api/surprise/gift', async (c) => {

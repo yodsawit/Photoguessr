@@ -91,6 +91,7 @@ export function createPoolStore(objects: ObjectStore) {
     /** Separate object from pool.json so frequent activity writes can't overwrite it. */
     getHighScore: (poolId: string) => getJson<HighScore>(`${poolDir(poolId)}highscore.json`),
     putHighScore: (poolId: string, hs: HighScore) => putJson(`${poolDir(poolId)}highscore.json`, hs),
+    deleteHighScore: (poolId: string) => objects.delete([`${poolDir(poolId)}highscore.json`]),
 
     getSurprise: async (poolId: string): Promise<SurpriseState> =>
       (await getJson<SurpriseState>(`${poolDir(poolId)}surprise/state.json`)) ?? { games: 0, seen: false, gift: null },

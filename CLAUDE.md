@@ -46,6 +46,7 @@ GeoGuessr-style browser game played on private, auto-expiring pools of the owner
   rounds) + medal, starting at F; overflow past the max flashes, sweeps, bursts sparkles.
 - **Album high score**: the server records each guess against its game (`server/games.ts`, in
   memory) and saves `pools/<id>/highscore.json` when a finished game beats it; shown on album home.
+  Admin reset: `POST /api/highscore/reset` with `X-Admin-Code` + the album key as Bearer.
 
 ## Wording
 - Players and owners see **album / albums**. Code, API routes (`/api/pools`, `/api/pool`), R2 layout
