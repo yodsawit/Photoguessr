@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ApiError, deletePool, fetchPoolStatus, type PoolStatus } from '../game/api'
 import { Button, Card, CenteredPage, Title } from '../components/layout'
 import { KeyCard } from './AdminPage'
+import { AddPhotos } from './AddPhotos'
 import { gameGrade } from '../game/scoring'
 import type { HighScore } from '../game/types'
 import { gradeTextColor, GradeMedal } from '../components/GradeMedal'
@@ -74,8 +75,8 @@ export function PoolHome({ poolKey, onPlay, onLeave }: Props) {
 
             {status.empty ? (
               <p className="rounded-xl bg-butter/40 px-3 py-2 text-sm font-semibold text-ink">
-                No photos yet — this album is deleted at {formatWhen(status.expiresAt)} unless you add one. Add photos from your iPhone with the
-                “Add to PhotoGuessr” Shortcut using this key.
+                No photos yet — this album is deleted at {formatWhen(status.expiresAt)} unless you add one. Tap <b>📷 Add photos</b> below, or use the
+                “Add to PhotoGuessr” iPhone Shortcut with this key.
               </p>
             ) : (
               <p className="text-xs text-muted">Any play, upload or delete moves auto-delete to 3 days from then.</p>
@@ -86,9 +87,12 @@ export function PoolHome({ poolKey, onPlay, onLeave }: Props) {
             <Button tone="coral" onClick={onPlay} disabled={status.empty}>
               {status.empty ? 'Add a photo to play' : 'Play'}
             </Button>
-            <Button tone="quiet" onClick={refresh}>
-              Refresh
-            </Button>
+            <div className="grid grid-cols-2 gap-3">
+              <AddPhotos poolKey={poolKey} onFinished={refresh} onAlbumGone={(reason) => onLeave(reason)} />
+              <Button tone="quiet" onClick={refresh}>
+                Refresh
+              </Button>
+            </div>
 
             <details className="rounded-2xl border border-sand bg-white/70 px-3 py-2 text-sm">
               <summary className="cursor-pointer py-2 font-bold text-ink">Album key &amp; settings</summary>

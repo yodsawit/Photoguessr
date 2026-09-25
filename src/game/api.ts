@@ -49,3 +49,27 @@ export const createPool = (adminCode: string) =>
   call<{ key: string }>('/api/pools', { method: 'POST', headers: { 'X-Admin-Code': adminCode } })
 export const fetchPoolStatus = (key: string) => call<PoolStatus>('/api/pool', { key })
 export const deletePool = (key: string) => call<{ deleted: true }>('/api/pool', { key, method: 'DELETE' })
+
+export type UploadResult = { photoId: string; duplicate?: boolean }
+
+/**
+ * Uploads one original photo as the raw request body. No location fields are sent: the server
+ * reads GPS/date from the file itself, then stores only a cleaned 1920 px WebP.
+ */
+export async function uploadPhoto(key: string, file: File, signal?: AbortSignal): Promise<UploadResult> {
+  let res: Response
+  try {
+    res = await fetch('/api/photos', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/octet-stream' },
+      body: file,
+      signal,
+    })
+  } catch (err) {
+    if (signal?.aborted) throw err
+    throw new ApiError(0, "Can't reach the game server")
+  }
+  const body = (await res.json().catch(() => null)) as (UploadResult & { error?: string }) | null
+  if (!res.ok || !body) throw new ApiError(res.status, body?.error ?? `Upload failed (${res.status})`)
+  return body
+}

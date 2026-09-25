@@ -14,7 +14,9 @@ import { expiresAt } from './expiry'
 import { GameRegistry } from './games'
 import { dayOf, pickRounds } from './pick'
 import type { Geocoder } from './geocode'
-import { processUpload } from './ingest'
+import { createLimiter, processUpload } from './ingest'
+import { bodyLimit } from 'hono/body-limit'
+import { MAX_PHOTO_BYTES } from '../src/game/imageType'
 import { isPhotoId, type PoolStore } from './poolStore'
 import type { AuthedPool, PoolService } from './pools'
 
@@ -94,6 +96,8 @@ export function createApp(deps: AppDeps) {
   const clientIp = deps.clientIp ?? ((c: Context) => c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown')
   const limiter = new WrongAttemptLimiter(10, 60_000, now)
   const games = deps.games ?? new GameRegistry(now)
+  /** At most 2 photos decode at once server-wide (HEIC decoding is memory-hungry). */
+  const decodeQueue = createLimiter(2)
 
   const app = new Hono()
 
@@ -187,7 +191,15 @@ export function createApp(deps: AppDeps) {
     return c.json({ deleted: true })
   })
 
-  app.post('/api/photos', async (c) => {
+  // Size is enforced while the body streams in, so oversized uploads are cut off early.
+  const photoSizeLimit = bodyLimit({
+    maxSize: MAX_PHOTO_BYTES,
+    onError: () => {
+      throw new HttpError(413, `Photo is larger than ${MAX_PHOTO_BYTES / 1024 / 1024} MB`)
+    },
+  })
+
+  app.post('/api/photos', photoSizeLimit, async (c) => {
     const { pool } = await auth(c)
     let bytes: Uint8Array
     let fields: { lat: unknown; lng: unknown; takenAt: unknown }
@@ -212,7 +224,7 @@ export function createApp(deps: AppDeps) {
       if (bytes.length === 0) throw new HttpError(400, 'Missing photo: the request body is empty.')
       fields = { lat: c.req.header('X-Lat'), lng: c.req.header('X-Lng'), takenAt: c.req.header('X-Taken-At') }
     }
-    const processed = await processUpload(bytes, fields)
+    const processed = await decodeQueue(() => processUpload(bytes, fields))
 
     const existing = await store.findBySha(pool.poolId, processed.sha256)
     if (existing && (await store.getAnswer(pool.poolId, existing))) return c.json({ duplicate: true, photoId: existing }, 200)

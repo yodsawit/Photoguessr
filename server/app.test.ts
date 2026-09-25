@@ -310,6 +310,63 @@ describe('photos from different days', () => {
   })
 })
 
+describe('browser uploads of original photos', () => {
+  const gpsJpeg = async (color = 90) =>
+    new Uint8Array(
+      await sharp({ create: { width: 1200, height: 900, channels: 3, background: { r: color, g: 120, b: 60 } } })
+        .jpeg()
+        .withExif({
+          IFD2: { DateTimeOriginal: '2024:09:28 11:10:56', OffsetTimeOriginal: '+07:00' },
+          IFD3: { GPSLatitudeRef: 'N', GPSLatitude: '18/1 48/1 653/100', GPSLongitudeRef: 'E', GPSLongitude: '98/1 58/1 206/100' },
+        })
+        .toBuffer(),
+    )
+  const raw = (call: ReturnType<typeof setup>['call'], key: string, body: Uint8Array, type = 'application/octet-stream') =>
+    call('/api/photos', { method: 'POST', key, body, headers: { 'Content-Type': type } })
+
+  it('reads GPS and date from the original when no headers are sent', async () => {
+    const { call, createPool } = setup()
+    const key = await createPool()
+    const res = await raw(call, key, await gpsJpeg())
+    expect(res.status).toBe(201)
+    const { photoId } = (await res.json()) as { photoId: string }
+    const g = (await (await call('/api/guess', { method: 'POST', key, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: photoId, guess: null, opened: [], timedOut: true }) })).json()) as { answer: { lat: number; takenAt: string } }
+    expect(g.answer.lat).toBeCloseTo(18.8018, 3)
+    expect(g.answer.takenAt).toBe('2024-09-28T11:10:56+07:00')
+    const photo = await call(`/api/photo/${photoId}`, { key })
+    expect((await sharp(Buffer.from(await photo.arrayBuffer())).metadata()).exif).toBeUndefined()
+  })
+
+  it('refuses non-photos (415), photos without location (400), and flags duplicates', async () => {
+    const { call, createPool } = setup()
+    const key = await createPool()
+    const svg = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>')
+    const gif = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 1, 0, 1, 0, 0, 0, 0])
+    for (const [body, type] of [[svg, 'image/svg+xml'], [svg, 'image/jpeg'], [gif, 'image/gif']] as const) {
+      const r = await raw(call, key, body, type)
+      expect(r.status).toBe(415)
+      expect(((await r.json()) as { error: string }).error).toMatch(/Only photos/)
+    }
+    const noGps = new Uint8Array(await sharp({ create: { width: 50, height: 50, channels: 3, background: 'white' } }).jpeg().toBuffer())
+    expect((await raw(call, key, noGps)).status).toBe(400)
+    const photo = await gpsJpeg(33)
+    expect((await raw(call, key, photo)).status).toBe(201)
+    const dup = await raw(call, key, photo)
+    expect(await dup.json()).toMatchObject({ duplicate: true })
+  })
+
+  it('refuses bodies over 40 MB with 413, and needs the album key first', async () => {
+    const { call, createPool } = setup()
+    const key = await createPool()
+    const huge = new Uint8Array(40 * 1024 * 1024 + 1)
+    huge.set([0xff, 0xd8, 0xff])
+    const r = await raw(call, key, huge, 'image/jpeg')
+    expect(r.status).toBe(413)
+    expect(((await r.json()) as { error: string }).error).toMatch(/larger than 40 MB/)
+    expect((await raw(call, 'ZZZZZZ', await gpsJpeg())).status).toBe(401)
+  })
+})
+
 describe('brute-force protection', () => {
   it('locks an IP after 10 wrong keys (even a correct key then waits), other IPs unaffected', async () => {
     const { call, createPool } = setup()

@@ -1,5 +1,10 @@
 # iPhone Shortcut: "Add to PhotoGuessr"
 
+> **Simpler option:** open your album in the game and tap **📷 Add photos**. It uploads original
+> photos from your gallery or computer directly (up to 50 at a time, 40 MB each). If photos arrive
+> "without location", tap **Options** in the iPhone photo picker and turn **Location** on — or use
+> this Shortcut, which always sends the location.
+
 Adds photos from the Photos app to your album. The photo is shrunk and cleaned **on the phone**
 (1920 px JPEG, no metadata, ~360 KB instead of ~2.5 MB). Only the image pixels and the answer
 (latitude, longitude, date) are sent. Originals and your iCloud library stay private.

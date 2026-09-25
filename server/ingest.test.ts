@@ -2,7 +2,7 @@ import exifr from 'exifr'
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 import { createGeocoder } from './geocode'
-import { processUpload } from './ingest'
+import { createLimiter, processUpload } from './ingest'
 
 /** A 3000x4000 JPEG carrying GPS + date EXIF, like a raw phone photo. */
 async function jpegWithGps() {
@@ -58,7 +58,7 @@ describe('processUpload', () => {
       { lat: '1', lng: '1', takenAt: 'yesterday' },
     ]
     for (const f of bad) await expect(processUpload(input, f)).rejects.toMatchObject({ status: 400 })
-    await expect(processUpload(new TextEncoder().encode('not an image'), { lat: 1, lng: 2 })).rejects.toMatchObject({ status: 400 })
+    await expect(processUpload(new TextEncoder().encode('not an image'), { lat: 1, lng: 2 })).rejects.toMatchObject({ status: 415 })
     const noGps = new Uint8Array(await sharp({ create: { width: 10, height: 10, channels: 3, background: 'white' } }).jpeg().toBuffer())
     await expect(processUpload(noGps, {})).rejects.toMatchObject({ status: 400 })
   })
@@ -102,5 +102,49 @@ describe('geocoder', () => {
     expect(starts).toHaveLength(3)
     expect(starts[1] - starts[0]).toBeGreaterThanOrEqual(35)
     expect(starts[2] - starts[1]).toBeGreaterThanOrEqual(35)
+  })
+})
+
+describe('upload filtering', () => {
+  const svg = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>')
+  const gif = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 1, 0, 1, 0, 0, 0, 0])
+  const pdf = new TextEncoder().encode('%PDF-1.7 hello')
+
+  it('refuses anything that is not a photo by its bytes (415), before decoding', async () => {
+    for (const bad of [svg, gif, pdf, new TextEncoder().encode('just text')]) {
+      await expect(processUpload(bad, { lat: 1, lng: 2 })).rejects.toMatchObject({ status: 415 })
+    }
+  })
+
+  it('refuses images above the pixel limit (decompression bombs)', async () => {
+    const big = new Uint8Array(await sharp({ create: { width: 2000, height: 2000, channels: 3, background: 'white' } }).png().toBuffer())
+    await expect(processUpload(big, { lat: 1, lng: 2 }, { limitInputPixels: 1_000_000 })).rejects.toMatchObject({ status: 413 })
+    const ok = await processUpload(big, { lat: 1, lng: 2 }, { limitInputPixels: 5_000_000 })
+    expect(Math.max(ok.width, ok.height)).toBe(1920)
+  })
+
+  it('accepts a real original iPhone HEIC with GPS and strips everything', async () => {
+    const { readFile } = await import('node:fs/promises')
+    const heic = await readFile('photos/IMG_0901.HEIC').catch(() => null)
+    if (!heic) return // original not present in CI checkouts (photos/ is gitignored)
+    const out = await processUpload(new Uint8Array(heic), {})
+    expect(out.lat).toBeCloseTo(18.8018, 3)
+    expect(out.takenAt).toBe('2024-09-28T11:10:56+07:00')
+    expect((await sharp(out.image).metadata()).exif).toBeUndefined()
+  }, 60_000)
+
+  it('runs at most 2 photo jobs at once', async () => {
+    const limit = createLimiter(2)
+    let running = 0
+    let peak = 0
+    const job = () =>
+      limit(async () => {
+        running++
+        peak = Math.max(peak, running)
+        await new Promise((r) => setTimeout(r, 15))
+        running--
+      })
+    await Promise.all(Array.from({ length: 7 }, job))
+    expect(peak).toBe(2)
   })
 })

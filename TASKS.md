@@ -1,9 +1,15 @@
 # Tasks
 
 ## Now
+- [ ] Push v2.6 (waiting for your OK)
+- [ ] You: try "Add photos" from the iPhone gallery (check location comes through)
+
+## Next
 - [ ] You: Render Blueprint deploy (same KEY_PEPPER as .env)
 
 ## Done
+- [x] v2.6 steps 3-6: browser pre-check + uploadPhoto, Add photos panel, docs; 80 tests; browser + curl checks (2026-09-26)
+- [x] v2.6 steps 1-2: magic-byte gate (415), 100 MP pixel limit (413), decode queue of 2, 40 MB body limit (413); tests (2026-09-25)
 - [x] Cards 2/3/5 % on a 55% base (107% max, 105% best, 55% floor) (2026-09-25)
 - [x] v2.5: 40 s + 5 s per card, cards 4/7/12 %, D = 1000 km, round result shows letter grade only; pushed (2026-09-25)
 - [x] Pinpoint +10 after the multiply, within 100 m; album home stat tiles balanced (shared StatTile, compact medal) (2026-09-25)

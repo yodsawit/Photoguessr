@@ -63,7 +63,13 @@ GeoGuessr-style browser game played on private, auto-expiring pools of the owner
   photo deleted; visits don't extend it). Enforced on access, by the server's hourly sweep and by
   the sweeper Worker (every 15 min). Emptiness is read from the bucket (`ObjectStore.any`).
 - **Photos:** the iPhone Shortcut (`docs/iphone-shortcut.md`) or `npm run upload` sends a 1920 px
-  JPEG + lat/lng/takenAt. The server ALWAYS re-encodes to WebP q80 <= 1920 px with no metadata
+  JPEG + lat/lng/takenAt; the **📷 Add photos** button on the album home (`src/pages/AddPhotos.tsx`)
+  uploads **original files** one at a time as the raw body, and the server reads GPS/date from EXIF.
+- **Upload filtering (MANDATORY, both sides):** type by **magic bytes only** (`src/game/imageType.ts`,
+  shared: JPEG/PNG/WebP/HEIC/HEIF/AVIF; never trust name/extension/MIME), **40 MB** per photo
+  (browser pre-check + Hono `bodyLimit` → 413), **50 per batch**, **100 MP** pixel limit checked from
+  the header before decoding (413), non-photos → 415 before any decoder runs, and at most **2 photos
+  decoding at once** server-wide (`createLimiter`). File names are never sent or logged. The server ALWAYS re-encodes to WebP q80 <= 1920 px with no metadata
   (`server/ingest.ts`), dedups by sha256, geocodes via a 1 req/s Nominatim queue.
 - **Layout** (single source of truth: `server/poolStore.ts`, shared with the sweeper):
   `keys/<hash>.json` -> `{poolId}`, `pools/<id>/pool.json` (`keyHash, createdAt, lastActivityAt, emptySince`),
