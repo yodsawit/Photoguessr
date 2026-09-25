@@ -71,7 +71,7 @@ export function GradeMedal({ info, size = 'lg', className }: Props) {
         />
       )}
 
-      <motion.div key={grade} className="relative" style={{ width: disc, height: disc }} {...entrance}>
+      <motion.div key={grade} className="relative isolate" style={{ width: disc, height: disc }} {...entrance}>
         {/* crown (S) */}
         {tier === 6 && (
           <svg aria-hidden viewBox="0 0 64 40" className="absolute left-1/2 -translate-x-1/2 drop-shadow" style={{ width: disc * 0.62, top: -disc * 0.36 }}>
