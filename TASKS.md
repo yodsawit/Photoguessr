@@ -1,14 +1,16 @@
 # Tasks
 
 ## Now
-- [ ] Push 6068b01 + v2.2 commit (waiting for your OK)
+- [ ] v2.3 step 7: verify on port 8799 (never 8787), commit; push after OK
 
 ## Next
+- [ ] Push 6068b01 + 093da0a (+ v2.3) (waiting for your OK)
 - [ ] You: Render Blueprint deploy (same KEY_PEPPER as .env)
 - [ ] Speed: R2 round trips make each request ~1-3 s from Thailand (cache pool/key records per request)
-- [ ] Re-check animations + hover map in a visible Chrome window
 
 ## Done
+- [x] v2.3 steps 3-6: gameId flow + auto-start rounds 2+; Points wording + small medal; GameSummary (golden striped bar, tiered medal, overflow); album high score tile (2026-09-25)
+- [x] v2.3 steps 1-2: tile % 2/5/15, grades F(rust)..S(rainbow) with C yellow/B blue; server games + album high score, tests (2026-09-25)
 - [x] v2.2 step 7: 51 tests; browser: 10 rounds, 3-photo album = 3 rounds, +10s pop, +195% badge, tick once/sec + mute remembered, score = round(base x bonus%) (2026-09-25)
 - [x] v2.2 steps 1-6: new scoring (D=500 capped, bonus % from 0), +10 s per card with pop, last-10-s bump + soft tick + mute, % displays, 10 rounds + next-photo preload, album wording (2026-09-25)
 - [x] Upload fixes: clear Text-vs-File error, raw-body upload option, Shortcut guide (6068b01, 2026-09-25)

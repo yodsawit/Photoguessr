@@ -10,8 +10,8 @@ export const ROUND_SECONDS = 30
 export const TIME_PER_TILE_SECONDS = 10
 
 export type TileKind = 'corner' | 'side' | 'middle'
-/** Bonus % kept by each card while it stays hidden (base bonus is 0%; all hidden = 200%). */
-export const TILE_BONUS_PCT: Record<TileKind, number> = { corner: 5, side: 10, middle: 25 }
+/** Points % kept by each card while it stays hidden (starts at 0%; all hidden = 108%). */
+export const TILE_BONUS_PCT: Record<TileKind, number> = { corner: 2, side: 5, middle: 15 }
 
 const EARTH_RADIUS_KM = 6371.0088
 
@@ -39,7 +39,7 @@ export function tileKind(index: number): TileKind {
   return 'middle'
 }
 
-/** Sum of the bonus % of every card still hidden: 0..200. */
+/** Sum of the % of every card still hidden: 0..108. */
 export function bonusPercent(opened: ReadonlySet<number>): number {
   let pct = 0
   for (let i = 0; i < TILE_COUNT; i++) if (!opened.has(i)) pct += TILE_BONUS_PCT[tileKind(i)]
@@ -50,7 +50,7 @@ export type RoundResult = {
   guess: LatLng | null
   distanceKm: number | null
   baseScore: number
-  /** Bonus kept, in percent (0..200). */
+  /** Points % kept (0..108). */
   bonusPct: number
   finalScore: number
   openedCount: number
@@ -66,4 +66,27 @@ export function scoreRound(answer: LatLng, guess: LatLng | null, opened: Readonl
   const distanceKm = haversineKm(answer, guess)
   const baseScore = geoScore(distanceKm)
   return { guess, distanceKm, baseScore, bonusPct, finalScore: Math.round((baseScore * bonusPct) / 100), openedCount: opened.size, timedOut }
+}
+
+export type Grade = 'F' | 'D' | 'C' | 'B' | 'A' | 'A+' | 'S'
+export type GradeTone = 'rust' | 'purple' | 'yellow' | 'blue' | 'green' | 'gold' | 'rainbow'
+export type GradeInfo = { grade: Grade; min: number; tone: GradeTone; tier: number }
+
+/** Round grades by points (a whole game uses the average per round). Highest first. */
+export const GRADES: readonly GradeInfo[] = [
+  { grade: 'S', min: 100, tone: 'rainbow', tier: 6 },
+  { grade: 'A+', min: 90, tone: 'gold', tier: 5 },
+  { grade: 'A', min: 80, tone: 'green', tier: 4 },
+  { grade: 'B', min: 70, tone: 'blue', tier: 3 },
+  { grade: 'C', min: 60, tone: 'yellow', tier: 2 },
+  { grade: 'D', min: 50, tone: 'purple', tier: 1 },
+  { grade: 'F', min: -Infinity, tone: 'rust', tier: 0 },
+]
+
+export function gradeFor(pointsPerRound: number): GradeInfo {
+  return GRADES.find((g) => pointsPerRound >= g.min) ?? GRADES[GRADES.length - 1]
+}
+
+export function gameGrade(total: number, rounds: number): GradeInfo {
+  return gradeFor(rounds > 0 ? total / rounds : 0)
 }

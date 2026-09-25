@@ -1,4 +1,4 @@
-import type { GuessRequest, GuessResponse, PublicPhoto } from './types'
+import type { GuessRequest, GuessResponse, HighScore, RoundsResponse } from './types'
 
 /** Keys travel only in the Authorization header — never in URLs. */
 export class ApiError extends Error {
@@ -30,7 +30,7 @@ export const KEY_PATTERN = /^[A-Z0-9]{6}$/
 export const normalizeKey = (s: string) => s.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 6)
 
 // ---- playing (the pool key) ----
-export const fetchRounds = (key: string, count: number) => call<PublicPhoto[]>(`/api/rounds?count=${count}`, { key })
+export const fetchRounds = (key: string, count: number) => call<RoundsResponse>(`/api/rounds?count=${count}`, { key })
 
 export const postGuess = (key: string, req: GuessRequest) =>
   call<GuessResponse>('/api/guess', { key, method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) })
@@ -43,7 +43,7 @@ export async function fetchPhotoUrl(key: string, photoId: string, signal?: Abort
 }
 
 // ---- pool (same key) ----
-export type PoolStatus = { photoCount: number; empty: boolean; lastActivityAt: string; expiresAt: string }
+export type PoolStatus = { photoCount: number; empty: boolean; lastActivityAt: string; expiresAt: string; highScore: HighScore | null }
 
 export const createPool = (adminCode: string) =>
   call<{ key: string }>('/api/pools', { method: 'POST', headers: { 'X-Admin-Code': adminCode } })

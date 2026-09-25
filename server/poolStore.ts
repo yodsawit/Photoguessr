@@ -7,10 +7,11 @@
  *   pools/<poolId>/photos/<photoId>.webp   metadata-free image
  *   pools/<poolId>/photos/<photoId>.json   StoredAnswer (the hidden answer)
  *   pools/<poolId>/hashes/<sha256>         photoId                               dedup index
+ *   pools/<poolId>/highscore.json          HighScore                             best finished game
  */
 import { isExpired } from './expiry'
 import type { ObjectStore } from './objects'
-import type { Answer } from '../src/game/types'
+import type { Answer, HighScore } from '../src/game/types'
 
 export type PoolRecord = {
   poolId: string
@@ -71,6 +72,10 @@ export function createPoolStore(objects: ObjectStore) {
       const keys = await objects.list(`${poolDir(poolId)}photos/`)
       return keys.filter((k) => k.endsWith('.json')).map((k) => k.slice(k.lastIndexOf('/') + 1, -'.json'.length))
     },
+
+    /** Separate object from pool.json so frequent activity writes can't overwrite it. */
+    getHighScore: (poolId: string) => getJson<HighScore>(`${poolDir(poolId)}highscore.json`),
+    putHighScore: (poolId: string, hs: HighScore) => putJson(`${poolDir(poolId)}highscore.json`, hs),
 
     /** Asks the bucket directly (one item), so concurrent uploads can't make it stale. */
     hasPhotos: (poolId: string) => objects.any(`${poolDir(poolId)}photos/`),

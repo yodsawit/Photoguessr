@@ -70,7 +70,9 @@ describe('one key does everything', () => {
     const { photoId } = (await up.json()) as { photoId: string }
     await Promise.all(background)
 
-    const list = (await (await call('/api/rounds?count=5', { key })).json()) as Record<string, unknown>[]
+    const rounds = (await (await call('/api/rounds?count=5', { key })).json()) as { gameId: string; photos: Record<string, unknown>[] }
+    const list = rounds.photos
+    expect(rounds.gameId).toMatch(/^[0-9a-f-]{36}$/)
     expect(list).toEqual([{ id: photoId, width: 400, height: 300 }])
     expect(JSON.stringify(list)).not.toMatch(/lat|lng|18\.80|Chiang|2024/)
 
@@ -86,7 +88,7 @@ describe('one key does everything', () => {
       body: JSON.stringify({ id: photoId, guess: { lat: 18.8018, lng: 98.9672 }, opened: [0], timedOut: false }),
     })
     const result = (await guess.json()) as { finalScore: number; answer: Record<string, unknown> }
-    expect(result.finalScore).toBe(195) // exact guess, 1 corner open: 100 x 195%
+    expect(result.finalScore).toBe(106) // exact guess, 1 corner open: 100 x 106%
     expect(result.answer).toEqual({ lat: 18.8018, lng: 98.9672, takenAt: '2024-09-28T11:10:56+07:00', district: 'Mueang Chiang Mai', province: 'Chiang Mai' })
   })
 
@@ -98,7 +100,7 @@ describe('one key does everything', () => {
     const dup = await upload(key, undefined, 10)
     expect(dup.status).toBe(200)
     expect(await dup.json()).toMatchObject({ duplicate: true })
-    expect((await (await call('/api/rounds?count=10', { key })).json()) as unknown[]).toHaveLength(2)
+    expect(((await (await call('/api/rounds?count=10', { key })).json()) as { photos: unknown[] }).photos).toHaveLength(2)
   })
 
   it('rejects missing and wrong keys', async () => {
@@ -115,7 +117,7 @@ describe('one key does everything', () => {
     const b = await createPool()
     const { photoId } = (await (await upload(a)).json()) as { photoId: string }
     expect((await call(`/api/photo/${photoId}`, { key: b })).status).toBe(404)
-    expect(await (await call('/api/rounds', { key: b })).json()).toEqual([])
+    expect(((await (await call('/api/rounds', { key: b })).json()) as { photos: unknown[] }).photos).toEqual([])
   })
 
   it('status, delete one photo, delete pool', async () => {
@@ -193,6 +195,77 @@ describe('expiry over HTTP', () => {
     advance(2 * MIN)
     expect((await call('/api/rounds', { key: a })).status).toBe(404)
     expect((await call('/api/rounds', { key: b })).status).toBe(200)
+  })
+})
+
+describe('games and album high score', () => {
+  type Rounds = { gameId: string; photos: { id: string }[] }
+  type Guess = { finalScore: number; game?: { done: boolean; total: number; rounds: number; newHighScore?: boolean; highScore?: { total: number } } }
+  const at = (lat: number) => ({ lat: String(lat), lng: '98.9672' })
+
+  it('adds up server-computed scores and saves the album high score only when beaten', async () => {
+    const { call, createPool, upload, status } = setup()
+    const key = await createPool()
+    await upload(key, at(18.8018), 10)
+    await upload(key, at(19.0), 20)
+    expect(await status(key)).toMatchObject({ highScore: null })
+
+    const guessAll = async (openedTile: number, missKm: number) => {
+      const r = (await (await call('/api/rounds?count=10', { key })).json()) as Rounds
+      let last: Guess | null = null
+      for (const p of r.photos) {
+        // first guess reveals the answer; the counted guess is the one sent with the gameId
+        const peek = (await (await call('/api/guess', { method: 'POST', key, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, guess: { lat: 0, lng: 0 }, opened: [0], timedOut: false }) })).json()) as { answer: { lat: number; lng: number }; game?: unknown }
+        expect(peek.game).toBeUndefined() // no gameId -> not recorded
+        const guess = { lat: peek.answer.lat + missKm / 111, lng: peek.answer.lng }
+        last = (await (await call('/api/guess', { method: 'POST', key, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, gameId: r.gameId, guess, opened: [openedTile], timedOut: false }) })).json()) as Guess
+      }
+      return last!
+    }
+
+    const good = await guessAll(0, 0) // exact, 1 corner: 106 each
+    expect(good.game).toMatchObject({ done: true, total: 212, rounds: 2, newHighScore: true, highScore: { total: 212 } })
+    expect(await status(key)).toMatchObject({ highScore: { total: 212, rounds: 2 } })
+
+    const worse = await guessAll(5, 50) // middle opened, 50 km off
+    expect(worse.game?.done).toBe(true)
+    expect(worse.game?.newHighScore).toBe(false)
+    expect(worse.game?.total).toBeLessThan(212)
+    expect(await status(key)).toMatchObject({ highScore: { total: 212 } })
+  })
+
+  it('counts each photo once per game and ignores foreign or unknown games', async () => {
+    const { call, createPool, upload } = setup()
+    const key = await createPool()
+    const other = await createPool()
+    await upload(key, at(18.8), 10)
+    await upload(key, at(19.2), 20)
+    const r = (await (await call('/api/rounds?count=10', { key })).json()) as Rounds
+    const g = async (id: string, gameId: string, k = key) => {
+      const res = await call('/api/guess', { method: 'POST', key: k, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, gameId, guess: { lat: 18.8, lng: 98.9672 }, opened: [0], timedOut: false }) })
+      return (await res.json()) as Guess
+    }
+    const first = await g(r.photos[0].id, r.gameId)
+    const again = await g(r.photos[0].id, r.gameId)
+    expect(first.game).toMatchObject({ done: false })
+    expect(again.game?.total).toBe(first.game?.total) // re-guess doesn't add
+    expect((await g(r.photos[1].id, '00000000-0000-4000-8000-000000000000')).game).toBeUndefined()
+    const otherRounds = (await (await call('/api/rounds', { key: other })).json()) as Rounds
+    expect((await g(r.photos[1].id, otherRounds.gameId)).game).toBeUndefined() // game of another album
+    const done = await g(r.photos[1].id, r.gameId)
+    expect(done.game).toMatchObject({ done: true, rounds: 2 })
+    expect((await g(r.photos[1].id, r.gameId)).game).toBeUndefined() // finished game can't be scored again
+  })
+
+  it('deleting the album removes its high score', async () => {
+    const { call, createPool, upload, objects } = setup()
+    const key = await createPool()
+    await upload(key, at(18.8), 10)
+    const r = (await (await call('/api/rounds', { key })).json()) as Rounds
+    await call('/api/guess', { method: 'POST', key, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: r.photos[0].id, gameId: r.gameId, guess: { lat: 18.8, lng: 98.9672 }, opened: [0], timedOut: false }) })
+    expect(objects.keys().some((k) => k.endsWith('highscore.json'))).toBe(true)
+    await call('/api/pool', { method: 'DELETE', key })
+    expect(objects.keys()).toEqual([])
   })
 })
 

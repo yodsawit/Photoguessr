@@ -8,9 +8,10 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto'
 import { Hono, type Context } from 'hono'
 import { scoreRound, TILE_COUNT } from '../src/game/scoring'
-import type { LatLng, PublicPhoto } from '../src/game/types'
+import type { GameProgress, LatLng, PublicPhoto } from '../src/game/types'
 import { HttpError } from './errors'
 import { expiresAt } from './expiry'
+import { GameRegistry } from './games'
 import type { Geocoder } from './geocode'
 import { processUpload } from './ingest'
 import { isPhotoId, type PoolStore } from './poolStore'
@@ -27,6 +28,7 @@ export type AppDeps = {
   background?: (p: Promise<unknown>) => void
   clientIp?: (c: Context) => string
   now?: () => number
+  games?: GameRegistry
 }
 
 const MAX_ROUNDS = 20
@@ -90,6 +92,7 @@ export function createApp(deps: AppDeps) {
   const now = deps.now ?? Date.now
   const clientIp = deps.clientIp ?? ((c: Context) => c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown')
   const limiter = new WrongAttemptLimiter(10, 60_000, now)
+  const games = deps.games ?? new GameRegistry(now)
 
   const app = new Hono()
 
@@ -173,8 +176,8 @@ export function createApp(deps: AppDeps) {
 
   app.get('/api/pool', async (c) => {
     const { pool, hasPhotos } = await auth(c)
-    const photoCount = (await store.listPhotoIds(pool.poolId)).length
-    return c.json({ photoCount, empty: !hasPhotos, lastActivityAt: pool.lastActivityAt, expiresAt: expiresAt(pool, hasPhotos) })
+    const [ids, highScore] = await Promise.all([store.listPhotoIds(pool.poolId), store.getHighScore(pool.poolId)])
+    return c.json({ photoCount: ids.length, empty: !hasPhotos, lastActivityAt: pool.lastActivityAt, expiresAt: expiresAt(pool, hasPhotos), highScore })
   })
 
   app.delete('/api/pool', async (c) => {
@@ -248,7 +251,8 @@ export function createApp(deps: AppDeps) {
       const a = answers[i]
       return a ? [{ id, width: a.width, height: a.height }] : []
     })
-    return c.json(photos)
+    const { gameId } = games.create(pool.poolId, photos.map((p) => p.id))
+    return c.json({ gameId, photos })
   })
 
   app.get('/api/photo/:id', async (c) => {
@@ -272,7 +276,22 @@ export function createApp(deps: AppDeps) {
     if (!answer) throw new HttpError(404, 'Not found')
     const { lat, lng, takenAt, district, province } = answer
     const result = scoreRound({ lat, lng }, guess, new Set(opened as number[]), req?.timedOut === true)
-    return c.json({ ...result, answer: { lat, lng, takenAt, district, province } })
+
+    // Record against the game (server-computed score only) and update the album high score.
+    let game: GameProgress | undefined
+    const tracked = games.get(req?.gameId, pool.poolId)
+    const progress = tracked && games.record(tracked, id, result.finalScore)
+    if (progress) {
+      game = progress
+      if (progress.done) {
+        const best = await store.getHighScore(pool.poolId)
+        const newHighScore = !best || progress.total > best.total
+        const highScore = newHighScore ? { total: progress.total, rounds: progress.rounds, at: new Date(now()).toISOString() } : best
+        if (newHighScore) await store.putHighScore(pool.poolId, highScore)
+        game = { ...progress, highScore, newHighScore }
+      }
+    }
+    return c.json({ ...result, answer: { lat, lng, takenAt, district, province }, ...(game && { game }) })
   })
 
   app.all('/api/*', () => {

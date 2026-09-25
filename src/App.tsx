@@ -3,16 +3,16 @@ import { motion } from 'motion/react'
 import { ApiError, fetchPhotoUrl, fetchRounds, KEY_PATTERN, postGuess } from './game/api'
 import { bonusPercent, ROUND_SECONDS, TILE_BONUS_PCT, TIME_PER_TILE_SECONDS } from './game/scoring'
 import { sound } from './game/sound'
-import type { GuessRequest, PublicPhoto } from './game/types'
+import type { GameProgress, GuessRequest, PublicPhoto } from './game/types'
 import { useRound } from './game/useRound'
 import { GuessMap } from './components/GuessMap'
 import { KeyInput } from './components/KeyInput'
 import { Button, Card, CenteredPage, Shell, Title } from './components/layout'
 import { BonusBadge } from './components/BonusBadge'
+import { GameSummary } from './components/GameSummary'
 import { ResultView } from './components/ResultView'
 import { TileGrid } from './components/TileGrid'
 import { MuteToggle, Timer } from './components/Timer'
-import CountUp from './components/ui/CountUp'
 import { AdminPage } from './pages/AdminPage'
 import { PoolHome } from './pages/PoolHome'
 
@@ -103,7 +103,7 @@ function JoinPage({ error, onJoin }: { error: string | null; onJoin: (key: strin
   )
 }
 
-type Load = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ready'; photos: PublicPhoto[] }
+type Load = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ready'; gameId: string; photos: PublicPhoto[] }
 
 function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?: string | null) => void; onBack: () => void }) {
   const [gameKey, setGameKey] = useState(0)
@@ -111,6 +111,8 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
   const [roundIndex, setRoundIndex] = useState(0)
   const [total, setTotal] = useState(0)
   const [gameOver, setGameOver] = useState(false)
+  /** Server-side game result (total + album high score), from the last guess of the game. */
+  const [progress, setProgress] = useState<GameProgress | null>(null)
 
   // Photos are fetched with the key into blob URLs, shared across rounds so the next one can be
   // downloaded in the background. All are released when the game restarts or the screen closes.
@@ -140,7 +142,7 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
     let cancelled = false
     setLoad({ state: 'loading' })
     fetchRounds(poolKey, ROUNDS)
-      .then((photos) => !cancelled && setLoad({ state: 'ready', photos }))
+      .then(({ gameId, photos }) => !cancelled && setLoad({ state: 'ready', gameId, photos }))
       .catch((err: unknown) => {
         if (cancelled) return
         if (err instanceof ApiError && (err.status === 401 || err.status === 404)) onLeave('That album key is not valid, or the album has expired.')
@@ -157,6 +159,7 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
     setRoundIndex(0)
     setTotal(0)
     setGameOver(false)
+    setProgress(null)
   }
 
   if (load.state !== 'ready' || load.photos.length === 0) {
@@ -190,8 +193,9 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
     )
   }
 
-  const { photos } = load
-  const next = (score: number) => {
+  const { photos, gameId } = load
+  const next = (score: number, game?: GameProgress) => {
+    if (game) setProgress(game)
     setTotal((t) => t + score)
     if (roundIndex + 1 >= photos.length) setGameOver(true)
     else setRoundIndex((i) => i + 1)
@@ -200,11 +204,12 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
   return (
     <Shell>
       {gameOver ? (
-        <GameOver total={total} rounds={photos.length} onPlayAgain={playAgain} onBack={onBack} />
+        <GameSummary total={progress?.done ? progress.total : total} rounds={photos.length} progress={progress} onPlayAgain={playAgain} onBack={onBack} />
       ) : (
         <Round
           key={`${gameKey}-${roundIndex}`}
           poolKey={poolKey}
+          gameId={gameId}
           photo={photos[roundIndex]}
           nextPhotoId={photos[roundIndex + 1]?.id}
           loadPhoto={loadPhoto}
@@ -220,17 +225,18 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
 
 type RoundProps = {
   poolKey: string
+  gameId: string
   photo: PublicPhoto
   nextPhotoId?: string
   loadPhoto: (id: string) => Promise<string>
   roundNo: number
   rounds: number
-  onDone: (score: number) => void
+  onDone: (score: number, game?: GameProgress) => void
   onLeave: () => void
 }
 
-function Round({ poolKey, photo, nextPhotoId, loadPhoto, roundNo, rounds, onDone, onLeave }: RoundProps) {
-  const grade = useCallback((req: GuessRequest) => postGuess(poolKey, req), [poolKey])
+function Round({ poolKey, gameId, photo, nextPhotoId, loadPhoto, roundNo, rounds, onDone, onLeave }: RoundProps) {
+  const grade = useCallback((req: GuessRequest) => postGuess(poolKey, { ...req, gameId }), [poolKey, gameId])
   const round = useRound(photo, grade)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imageError, setImageError] = useState(false)
@@ -250,6 +256,13 @@ function Round({ poolKey, photo, nextPhotoId, loadPhoto, roundNo, rounds, onDone
       active = false
     }
   }, [loadPhoto, photo.id, nextPhotoId])
+
+  // Only round 1 shows the rules card; later rounds start as soon as their photo is ready.
+  const autoStart = roundNo > 1
+  const { phase, start } = round
+  useEffect(() => {
+    if (autoStart && imageUrl && phase === 'ready') start()
+  }, [autoStart, imageUrl, phase, start])
 
   return (
     <>
@@ -277,7 +290,15 @@ function Round({ poolKey, photo, nextPhotoId, loadPhoto, roundNo, rounds, onDone
       </header>
 
       {/* Enter-only animations: never gate a phase change (and the running timer) on an exit animation. */}
-      {round.phase === 'ready' && (
+      {round.phase === 'ready' && autoStart && (
+        <main className="flex flex-1 items-center justify-center px-4 pb-10">
+          <p className="rounded-2xl bg-white/80 px-4 py-3 font-bold text-muted shadow-sm">
+            {imageError ? "Couldn't load the photo" : 'Loading photo…'}
+          </p>
+        </main>
+      )}
+
+      {round.phase === 'ready' && !autoStart && (
         <motion.main key="ready" {...fade} className="flex flex-1 items-center justify-center px-4 pb-10">
           <ReadyCard
             loading={!imageUrl}
@@ -304,7 +325,7 @@ function Round({ poolKey, photo, nextPhotoId, loadPhoto, roundNo, rounds, onDone
 
       {round.phase === 'result' && round.result && imageUrl && (
         <motion.main key="result" {...fade} className="flex-1">
-          <ResultView photo={photo} imageUrl={imageUrl} result={round.result} isLastRound={roundNo === rounds} onNext={() => onDone(round.result!.finalScore)} />
+          <ResultView photo={photo} imageUrl={imageUrl} result={round.result} isLastRound={roundNo === rounds} onNext={() => onDone(round.result!.finalScore, round.result!.game)} />
         </motion.main>
       )}
     </>
@@ -327,8 +348,8 @@ function ReadyCard({ loading, failed, rounds, onStart }: { loading: boolean; fai
       <ul className="mt-4 space-y-2 text-left text-sm text-ink">
         <li>🃏 The photo hides under 16 cards. Tap to open them one at a time — at least one.</li>
         <li>
-          ✨ Every hidden card keeps a bonus: corners <b>+{TILE_BONUS_PCT.corner}%</b>, sides <b>+{TILE_BONUS_PCT.side}%</b>, middle{' '}
-          <b>+{TILE_BONUS_PCT.middle}%</b>. Your score is distance points × bonus.
+          ✨ Every hidden card keeps its points: corners <b>{TILE_BONUS_PCT.corner}%</b>, sides <b>{TILE_BONUS_PCT.side}%</b>, middle{' '}
+          <b>{TILE_BONUS_PCT.middle}%</b>. Your score is distance points × those %.
         </li>
         <li>📍 Drop a pin on the map and guess. Closer = more points.</li>
         <li>
@@ -343,32 +364,6 @@ function ReadyCard({ loading, failed, rounds, onStart }: { loading: boolean; fai
         {failed ? "Couldn't load the photo" : loading ? 'Loading photo…' : 'Start round'}
       </Button>
     </Card>
-  )
-}
-
-function GameOver({ total, rounds, onPlayAgain, onBack }: { total: number; rounds: number; onPlayAgain: () => void; onBack: () => void }) {
-  return (
-    <main className="flex flex-1 items-center justify-center px-4 py-10">
-      <Card>
-        <p className="text-4xl" aria-hidden>
-          🎉
-        </p>
-        <h2 className="mt-2 text-2xl font-extrabold text-ink">Game over</h2>
-        <p className="mt-1 text-sm text-muted">
-          {rounds} round{rounds > 1 ? 's' : ''} played
-        </p>
-        <p className="mt-4 text-6xl font-extrabold text-coral tabular-nums">
-          <CountUp to={total} duration={1.2} separator="," />
-        </p>
-        <p className="text-xs font-bold uppercase tracking-wide text-muted">total points</p>
-        <Button className="mt-6" onClick={onPlayAgain}>
-          Play again
-        </Button>
-        <Button tone="quiet" className="mt-3" onClick={onBack}>
-          Back to album
-        </Button>
-      </Card>
-    </main>
   )
 }
 

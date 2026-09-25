@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { ApiError, deletePool, fetchPoolStatus, type PoolStatus } from '../game/api'
 import { Button, Card, CenteredPage, Title } from '../components/layout'
 import { KeyCard } from './AdminPage'
+import { gameGrade } from '../game/scoring'
+import type { HighScore } from '../game/types'
+import { gradeTextColor, GradeMedal } from '../components/GradeMedal'
 
 const formatWhen = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -57,11 +60,12 @@ export function PoolHome({ poolKey, onPlay, onLeave }: Props) {
           <p className="mt-5 font-bold text-muted">{error ?? 'Loading…'}</p>
         ) : (
           <div className="mt-5 space-y-3 text-left">
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-3 gap-2 text-sm sm:gap-3">
               <div className="rounded-2xl bg-cream px-3 py-2">
                 <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Photos</p>
                 <p className="text-2xl font-extrabold text-ink">{status.photoCount}</p>
               </div>
+              <HighScoreTile highScore={status.highScore} />
               <div className="rounded-2xl bg-cream px-3 py-2">
                 <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Auto-delete</p>
                 <p className="font-bold text-ink">{formatWhen(status.expiresAt)}</p>
@@ -103,5 +107,29 @@ export function PoolHome({ poolKey, onPlay, onLeave }: Props) {
         )}
       </Card>
     </CenteredPage>
+  )
+}
+
+/** Album high score (best finished game), shown in its grade colour. */
+function HighScoreTile({ highScore }: { highScore: HighScore | null }) {
+  if (!highScore) {
+    return (
+      <div className="rounded-2xl bg-cream px-3 py-2">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted">High score</p>
+        <p className="text-xs font-semibold text-muted">No games yet</p>
+      </div>
+    )
+  }
+  const info = gameGrade(highScore.total, highScore.rounds)
+  return (
+    <div className="rounded-2xl bg-cream px-3 py-2">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-muted">High score</p>
+      <div className="flex items-center gap-1.5">
+        <span className="text-2xl font-extrabold tabular-nums" style={{ color: gradeTextColor(info.tone) }}>
+          {highScore.total.toLocaleString('en-US')}
+        </span>
+        <GradeMedal info={info} size="sm" className="origin-left scale-75" />
+      </div>
+    </div>
   )
 }

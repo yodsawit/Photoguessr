@@ -102,3 +102,44 @@ body {
   background: none;
   border: none;
 }
+
+/* Grade medal + score bar animations */
+@keyframes medal-spin {
+  to {
+    /* rotate only: Tailwind v4 centers with the separate `translate` property */
+    transform: rotate(360deg);
+  }
+}
+@keyframes medal-shine {
+  0%,
+  55% {
+    transform: translateX(0) skewX(-20deg);
+  }
+  100% {
+    transform: translateX(520%) skewX(-20deg);
+  }
+}
+@keyframes medal-shimmer {
+  to {
+    background-position: 200% 0;
+  }
+}
+@keyframes bar-stripes {
+  to {
+    background-position: 40px 0;
+  }
+}
+@keyframes bar-sweep {
+  from {
+    transform: translateX(-120%) skewX(-20deg);
+  }
+  to {
+    transform: translateX(420%) skewX(-20deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [class*='animate-[medal'],
+  [class*='animate-[bar'] {
+    animation: none !important;
+  }
+}

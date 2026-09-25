@@ -22,11 +22,26 @@ export type Answer = {
 
 export type GuessRequest = {
   id: string
+  /** The game this guess belongs to (from GET /api/rounds); counts toward the album high score. */
+  gameId?: string
   guess: LatLng | null
   /** Indices (0..15, row-major) of opened tiles. */
   opened: number[]
   timedOut: boolean
 }
 
-/** Server's answer to a guess: the score plus the revealed answer. */
-export type GuessResponse = RoundResult & { answer: Answer }
+export type HighScore = { total: number; rounds: number; at: string }
+
+export type GameProgress = {
+  done: boolean
+  total: number
+  rounds: number
+  /** Only when done. */
+  highScore?: HighScore
+  newHighScore?: boolean
+}
+
+/** Server's answer to a guess: the score plus the revealed answer (and game progress if tracked). */
+export type GuessResponse = RoundResult & { answer: Answer; game?: GameProgress }
+
+export type RoundsResponse = { gameId: string; photos: PublicPhoto[] }

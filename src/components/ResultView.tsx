@@ -5,6 +5,9 @@ import { formatDistance, formatTakenAt } from '../game/format'
 import type { Answer, GuessResponse, PublicPhoto } from '../game/types'
 import { AutoResize, BaseTiles, answerIcon, guessIcon } from './map'
 import CountUp from './ui/CountUp'
+import { motion } from 'motion/react'
+import { gradeFor } from '../game/scoring'
+import { GradeMedal } from './GradeMedal'
 
 type Props = {
   photo: PublicPhoto
@@ -62,16 +65,20 @@ export function ResultView({ photo, imageUrl, result, isLastRound, onNext }: Pro
         </div>
 
         <section className="rounded-3xl border border-sand bg-white/90 p-5 shadow-sm">
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-muted">Score</p>
               <p className="text-5xl font-extrabold leading-none text-ink tabular-nums">
                 <CountUp to={finalScore} duration={1.2} separator="," />
               </p>
+              <p className="mt-2 inline-block rounded-2xl bg-butter/40 px-3 py-1.5 text-sm font-semibold text-ink tabular-nums">
+                {baseScore.toFixed(1)} <span className="text-muted">×</span> {bonusPct}% <span className="text-muted">=</span> {finalScore}
+              </p>
             </div>
-            <p className="rounded-2xl bg-butter/40 px-3 py-2 text-sm font-semibold text-ink tabular-nums">
-              {baseScore.toFixed(1)} pts <span className="text-muted">×</span> {bonusPct}% bonus
-            </p>
+            {/* grade pops in once the count-up has settled */}
+            <motion.div initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 1.0, type: 'spring', stiffness: 380, damping: 16 }}>
+              <GradeMedal info={gradeFor(finalScore)} size="sm" />
+            </motion.div>
           </div>
 
           {noScoreReason && <p className="mt-3 rounded-xl bg-peach/25 px-3 py-2 text-sm font-semibold text-coral">⏰ {noScoreReason}</p>}
