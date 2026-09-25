@@ -117,7 +117,7 @@ export default function HbdParty({ onExit }: { onExit: () => void }) {
     }, EXPLOSION_DELAY_MS)
   }
 
-  if (blackout) return <BlackScreen onExit={onExit} />
+  if (blackout) return <BlackScreen onExit={onExit} muted={muted} />
 
   return (
     <motion.main
@@ -346,12 +346,67 @@ function Confetti() {
 }
 
 /**
+ * Typewriter key clicks, synthesized with Web Audio (no sound file): a very short band-passed noise
+ * burst plus a low "thunk", slightly different each time so it doesn't sound robotic.
+ */
+function createTypewriter() {
+  let ctx: AudioContext | null = null
+  let noise: AudioBuffer | null = null
+  return {
+    /** Must run inside a tap (phones only allow audio after a user gesture). */
+    unlock() {
+      if (!ctx) {
+        const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+        if (!Ctor) return
+        ctx = new Ctor()
+        noise = ctx.createBuffer(1, Math.round(ctx.sampleRate * 0.06), ctx.sampleRate)
+        const d = noise.getChannelData(0)
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
+      }
+      void ctx.resume().catch(() => undefined)
+    },
+    click() {
+      if (!ctx || !noise || ctx.state !== 'running') return
+      const t = ctx.currentTime
+      const src = ctx.createBufferSource()
+      src.buffer = noise
+      src.playbackRate.value = 0.85 + Math.random() * 0.3
+      const band = ctx.createBiquadFilter()
+      band.type = 'bandpass'
+      band.frequency.value = 1700 + Math.random() * 1100
+      band.Q.value = 1.1
+      const clack = ctx.createGain()
+      clack.gain.setValueAtTime(0.0001, t)
+      clack.gain.exponentialRampToValueAtTime(0.3, t + 0.002)
+      clack.gain.exponentialRampToValueAtTime(0.0001, t + 0.045)
+      src.connect(band).connect(clack).connect(ctx.destination)
+      src.start(t)
+      src.stop(t + 0.06)
+      const body = ctx.createOscillator()
+      body.frequency.value = 120 + Math.random() * 40
+      const thunk = ctx.createGain()
+      thunk.gain.setValueAtTime(0.0001, t)
+      thunk.gain.exponentialRampToValueAtTime(0.12, t + 0.003)
+      thunk.gain.exponentialRampToValueAtTime(0.0001, t + 0.035)
+      body.connect(thunk).connect(ctx.destination)
+      body.start(t)
+      body.stop(t + 0.05)
+    },
+    close() {
+      void ctx?.close().catch(() => undefined)
+    },
+  }
+}
+
+/**
  * After the cut: a white flash, then black. Each tap fades the current line out, then types the next
  * one in light grey, centred. A tap while a line is still typing finishes it (so no line is skipped);
  * a tap after the last line fades it out, then the app fades from black into the album page.
  */
-function BlackScreen({ onExit }: { onExit: () => void }) {
+function BlackScreen({ onExit, muted }: { onExit: () => void; muted: boolean }) {
   const [flash, setFlash] = useState(true)
+  const typewriter = useRef<ReturnType<typeof createTypewriter> | null>(null)
+  typewriter.current ??= createTypewriter()
   const [line, setLine] = useState(-1)
   const [typed, setTyped] = useState(0)
   const [fading, setFading] = useState(false)
@@ -363,7 +418,14 @@ function BlackScreen({ onExit }: { onExit: () => void }) {
     return () => window.clearTimeout(id)
   }, [])
 
+  useEffect(() => () => typewriter.current?.close(), [])
+
   const text = line >= 0 ? BLACK_LINES[line] : ''
+  // One key click per typed character (spaces are silent); finishing a line at once clicks once.
+  useEffect(() => {
+    if (!muted && typed > 0 && text[typed - 1] !== ' ') typewriter.current?.click()
+  }, [typed, text, muted])
+
   useEffect(() => {
     if (typed >= text.length) return
     const id = window.setTimeout(() => setTyped((n) => n + 1), TYPE_MS)
@@ -371,6 +433,7 @@ function BlackScreen({ onExit }: { onExit: () => void }) {
   }, [typed, text])
 
   const onTap = () => {
+    typewriter.current?.unlock()
     if (fading || performance.now() < readyAt.current) return
     if (typed < text.length) return setTyped(text.length)
     if (line === BLACK_LINES.length - 1) {

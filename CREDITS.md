@@ -37,6 +37,7 @@ CLAUDE.md). The game itself never uses it.
 | `explosion.mp4`: green-screen explosion | Supplied by the owner; trimmed, re-encoded to H.264, no audio |
 | `photo.webp` | The owner's photo, re-encoded without metadata |
 | boom sound | `public/sfx/overflow.mp3` (Kenney, CC0) |
+| typewriter clicks | Synthesized in the browser (Web Audio) for this project |
 
 The green screen is removed in the browser by `src/components/ChromaVideo.tsx` (WebGL). The title,
 flames and confetti on that page are original (motion/react).
