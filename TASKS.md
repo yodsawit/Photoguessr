@@ -1,10 +1,10 @@
 # Tasks
 
 ## Now
-- [ ] Push 6068b01 + 093da0a + 8480356 (+ v2.4) (waiting for your OK)
 - [ ] You: Render Blueprint deploy (same KEY_PEPPER as .env)
 
 ## Done
+- [x] v2.5: 40 s + 5 s per card, cards 4/7/12 %, D = 1000 km, round result shows letter grade only; pushed (2026-09-25)
 - [x] Pinpoint +10 after the multiply, within 100 m; album home stat tiles balanced (shared StatTile, compact medal) (2026-09-25)
 - [x] v2.4 steps 2-5: distinct days per game (+ backfill), medal above score, no 1,000 label, flag pin, photo card no longer stretches; 66 tests + browser check (2026-09-25)
 - [x] v2.4 step 1: pinpoint +10 under 50 m; guessing without opening a card allowed (2026-09-25)

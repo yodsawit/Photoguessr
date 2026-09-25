@@ -4,17 +4,17 @@ export const GRID = 4
 export const TILE_COUNT = GRID * GRID
 export const BASE_SCORE = 100
 /** GeoGuessr map-size constant D, in km. Distances beyond D score (almost) nothing. */
-export const MAP_SIZE_KM = 500
+export const MAP_SIZE_KM = 1000
 /** Starting clock per round; every opened card adds TIME_PER_TILE_SECONDS. */
-export const ROUND_SECONDS = 30
-export const TIME_PER_TILE_SECONDS = 10
+export const ROUND_SECONDS = 40
+export const TIME_PER_TILE_SECONDS = 5
 /** A guess this close earns extra points, added to the final score (after the % multiplier). */
 export const PINPOINT_METERS = 100
 export const PINPOINT_POINTS = 10
 
 export type TileKind = 'corner' | 'side' | 'middle'
-/** Points % kept by each card while it stays hidden (starts at 0%; all hidden = 108%). */
-export const TILE_BONUS_PCT: Record<TileKind, number> = { corner: 2, side: 5, middle: 15 }
+/** Points % kept by each card while it stays hidden (starts at 0%; all hidden = 120%). */
+export const TILE_BONUS_PCT: Record<TileKind, number> = { corner: 4, side: 7, middle: 12 }
 
 const EARTH_RADIUS_KM = 6371.0088
 
@@ -42,7 +42,7 @@ export function tileKind(index: number): TileKind {
   return 'middle'
 }
 
-/** Sum of the % of every card still hidden: 0..108. */
+/** Sum of the % of every card still hidden: 0..120. */
 export function bonusPercent(opened: ReadonlySet<number>): number {
   let pct = 0
   for (let i = 0; i < TILE_COUNT; i++) if (!opened.has(i)) pct += TILE_BONUS_PCT[tileKind(i)]
@@ -53,7 +53,7 @@ export type RoundResult = {
   guess: LatLng | null
   distanceKm: number | null
   baseScore: number
-  /** Points % kept (0..108). */
+  /** Points % kept (0..120). */
   bonusPct: number
   finalScore: number
   /** Guess was within PINPOINT_METERS: finalScore includes +PINPOINT_POINTS. */
@@ -64,7 +64,7 @@ export type RoundResult = {
 
 /**
  * final = round(distance points × points%) [+10 pinpoint within 100 m]. Only needs a pin; guessing
- * without opening any card is allowed and keeps the full 108%.
+ * without opening any card is allowed and keeps the full 120%.
  */
 export function scoreRound(answer: LatLng, guess: LatLng | null, opened: ReadonlySet<number>, timedOut: boolean): RoundResult {
   const bonusPct = bonusPercent(opened)

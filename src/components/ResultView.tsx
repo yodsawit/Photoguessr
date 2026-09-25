@@ -7,7 +7,7 @@ import { AutoResize, BaseTiles, answerIcon, guessIcon } from './map'
 import CountUp from './ui/CountUp'
 import { motion } from 'motion/react'
 import { gradeFor, PINPOINT_METERS, PINPOINT_POINTS } from '../game/scoring'
-import { GradeMedal } from './GradeMedal'
+import { gradeTextColor } from './GradeMedal'
 
 type Props = {
   photo: PublicPhoto
@@ -84,7 +84,7 @@ export function ResultView({ photo, imageUrl, result, isLastRound, onNext }: Pro
             </div>
             {/* grade pops in once the count-up has settled */}
             <motion.div initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 1.0, type: 'spring', stiffness: 380, damping: 16 }}>
-              <GradeMedal info={gradeFor(finalScore)} size="sm" />
+              <GradeLetter score={finalScore} />
             </motion.div>
           </div>
 
@@ -127,5 +127,30 @@ function Stat({ label, value }: { label: string; value: string }) {
       <dt className="text-[11px] font-bold uppercase tracking-wide text-muted">{label}</dt>
       <dd className="font-bold text-ink">{value}</dd>
     </div>
+  )
+}
+
+/** Between rounds: just the letter grade in its colour (the medal is saved for the game over). */
+function GradeLetter({ score }: { score: number }) {
+  const { grade, tone } = gradeFor(score)
+  const rainbow = tone === 'rainbow'
+  return (
+    <span
+      aria-label={`Grade ${grade}`}
+      className={`block text-6xl leading-none font-black tracking-tight ${rainbow ? 'animate-[medal-shimmer_2.4s_linear_infinite]' : ''}`}
+      style={
+        rainbow
+          ? {
+              backgroundImage: 'linear-gradient(90deg,#ff5f6d,#ffc371,#7ee8a2,#5fb8ff,#a47bff,#ff6fd8,#ff5f6d)',
+              backgroundSize: '200% 100%',
+              WebkitBackgroundClip: 'text',
+              backgroundClip: 'text',
+              color: 'transparent',
+            }
+          : { color: gradeTextColor(tone) }
+      }
+    >
+      {grade}
+    </span>
   )
 }

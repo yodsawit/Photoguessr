@@ -10,7 +10,7 @@ const URGENT_SECONDS = 10
 
 type Props = {
   remainingMs: number
-  /** Clock length so far (30 s + 10 s per opened card). */
+  /** Clock length so far (ROUND_SECONDS + TIME_PER_TILE_SECONDS per opened card). */
   totalMs: number
   /** Number of opened cards; each increase shows a "+10s" pop. */
   bonusCount: number
@@ -22,7 +22,7 @@ export function Timer({ remainingMs, totalMs, bonusCount }: Props) {
   const seconds = Math.ceil(remainingMs / 1000)
   const urgent = seconds <= URGENT_SECONDS
 
-  // Soft tick once per whole second in the last 10 s (stops if a +10 s bonus lifts the clock).
+  // Soft tick once per whole second in the last 10 s (stops if a per-card time bonus lifts the clock).
   const lastTicked = useRef<number | null>(null)
   useEffect(() => {
     if (!urgent || seconds <= 0 || lastTicked.current === seconds) return
