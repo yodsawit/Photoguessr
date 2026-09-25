@@ -1,7 +1,6 @@
 # Tasks
 
 ## Now
-- [ ] High score reset: push (waiting for your OK)
 - [ ] Push v2.6 (waiting for your OK)
 - [ ] You: try "Add photos" from the iPhone gallery (check location comes through)
 
@@ -10,7 +9,7 @@
 - [ ] You: Render Blueprint deploy (same KEY_PEPPER as .env)
 
 ## Done
-- [x] High score reset: POST /api/highscore/reset (admin code + album key), test first; 90 tests; committed (2026-09-26)
+- [x] High score reset: POST /api/highscore/reset (admin code + album key), test first; 90 tests; pushed (2026-09-26)
 - [x] HBD surprise key: tested locally by you, committed + pushed (2026-09-26)
 - [x] HBD 4: 89 tests + typecheck; browser: game 2 round 3 = gift under cards -> HBD page, seen -> normal again, reset; HbdPage 375 px OK (48 px button, no h-scroll); counting moved to first guess (StrictMode/reload-safe) (2026-09-26)
 - [x] HBD 3: client: gift replaces round photo, local scoring, lazy HbdPage (wrapped present -> gift, confetti) (2026-09-26)
