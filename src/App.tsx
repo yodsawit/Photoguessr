@@ -327,7 +327,7 @@ function Round({ poolKey, gameId, photo, nextPhotoId, loadPhoto, roundNo, rounds
 
       {round.phase === 'result' && round.result && imageUrl && (
         <motion.main key="result" {...fade} className="flex-1">
-          <ResultView photo={photo} imageUrl={imageUrl} result={round.result} isLastRound={roundNo === rounds} roundNo={roundNo} rounds={rounds} totalBefore={totalBefore} onNext={() => onDone(round.result!.finalScore, round.result!.game)} />
+          <ResultView photo={photo} imageUrl={imageUrl} result={round.result} isLastRound={roundNo === rounds} totalBefore={totalBefore} onNext={() => onDone(round.result!.finalScore, round.result!.game)} />
         </motion.main>
       )}
     </>
