@@ -8,6 +8,8 @@ import CountUp from './ui/CountUp'
 import { motion } from 'motion/react'
 import { gradeFor, PINPOINT_METERS, PINPOINT_POINTS } from '../game/scoring'
 import { gradeTextColor } from './GradeMedal'
+import { sound } from '../game/sound'
+import { gradeSound } from '../game/sfx'
 
 type Props = {
   photo: PublicPhoto
@@ -34,6 +36,17 @@ function FitBoth({ answer, guess }: { answer: Answer; guess: GuessResponse['gues
 export function ResultView({ photo, imageUrl, result, isLastRound, totalBefore, onNext }: Props) {
   const { guess, distanceKm, baseScore, bonusPct, finalScore, pinpoint, timedOut, answer } = result
   const noScoreReason = !guess ? 'No pin dropped in time' : null
+
+  // Sounds follow the animations: ticks while the score counts up (1.2 s), the pinpoint ding with
+  // its badge (0.4 s), the grade sound when the letter pops (1.0 s).
+  useEffect(() => {
+    const timers: number[] = []
+    const at = (ms: number, fn: () => void) => timers.push(window.setTimeout(fn, ms))
+    if (finalScore > 0) for (let ms = 0; ms < 1150; ms += 90) at(ms, () => sound.play('count', { rate: 0.9 + ms / 1500 }))
+    if (pinpoint) at(400, () => sound.play('pinpoint'))
+    at(1000, () => sound.play(gradeSound(gradeFor(finalScore).tier)))
+    return () => timers.forEach(clearTimeout)
+  }, [finalScore, pinpoint])
 
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-4 px-4 pb-8 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] md:gap-6">

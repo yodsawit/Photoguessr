@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { TIME_PER_TILE_SECONDS } from '../game/scoring'
 import { sound } from '../game/sound'
+import { ALARM_SECONDS } from '../game/sfx'
 import { cn } from '../lib/utils'
 
 const R = 20
@@ -22,13 +23,22 @@ export function Timer({ remainingMs, totalMs, bonusCount }: Props) {
   const seconds = Math.ceil(remainingMs / 1000)
   const urgent = seconds <= URGENT_SECONDS
 
-  // Soft tick once per whole second in the last 10 s (stops if a per-card time bonus lifts the clock).
+  // Soft tick once per whole second in the last 10 s (stops if a per-card time bonus lifts the clock),
+  // then a Gartic-style alarm rings over the last ALARM_SECONDS instead of ticks.
   const lastTicked = useRef<number | null>(null)
+  const stopAlarm = useRef<(() => void) | null>(null)
   useEffect(() => {
+    if (seconds > ALARM_SECONDS && stopAlarm.current) {
+      stopAlarm.current() // a card added time: silence the alarm
+      stopAlarm.current = null
+    }
     if (!urgent || seconds <= 0 || lastTicked.current === seconds) return
     lastTicked.current = seconds
-    sound.tick(seconds)
+    if (seconds > ALARM_SECONDS) sound.tick(seconds)
+    else if (!stopAlarm.current) stopAlarm.current = sound.play('alarm')
   }, [seconds, urgent])
+  // Guessing (or the round ending) unmounts the timer: stop the alarm with it.
+  useEffect(() => () => stopAlarm.current?.(), [])
 
   // "+10s" pops: one per newly opened card.
   const [pops, setPops] = useState<number[]>([])
@@ -89,18 +99,45 @@ export function Timer({ remainingMs, totalMs, bonusCount }: Props) {
   )
 }
 
-/** 🔊 / 🔇 for the countdown tick; remembered per device. */
+const toggleClass = 'flex h-11 w-11 items-center justify-center rounded-2xl border border-sand bg-white/90 text-lg shadow-sm active:scale-95'
+
+/** 🔊 / 🔇 for every sound (effects, music, countdown); remembered per device. */
 export function MuteToggle() {
   const muted = useSyncExternalStore(sound.subscribe, sound.isMuted)
   return (
     <button
       type="button"
       onClick={() => sound.setMuted(!muted)}
-      aria-label={muted ? 'Turn countdown sound on' : 'Mute countdown sound'}
+      aria-label={muted ? 'Turn sound on' : 'Mute all sound'}
       aria-pressed={muted}
-      className="flex h-11 w-11 items-center justify-center rounded-2xl border border-sand bg-white/90 text-lg shadow-sm active:scale-95"
+      className={toggleClass}
     >
       <span aria-hidden>{muted ? '🔇' : '🔊'}</span>
     </button>
+  )
+}
+
+/** 🎵 background music on/off (effects stay on); remembered per device. */
+export function MusicToggle() {
+  const on = useSyncExternalStore(sound.subscribe, sound.isMusicOn)
+  return (
+    <button
+      type="button"
+      onClick={() => sound.setMusicOn(!on)}
+      aria-label={on ? 'Turn music off' : 'Turn music on'}
+      aria-pressed={on}
+      className={cn(toggleClass, !on && 'opacity-45')}
+    >
+      <span aria-hidden>🎵</span>
+    </button>
+  )
+}
+
+export function SoundToggles() {
+  return (
+    <div className="flex items-center gap-2">
+      <MusicToggle />
+      <MuteToggle />
+    </div>
   )
 }

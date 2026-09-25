@@ -12,9 +12,10 @@ import { BonusBadge } from './components/BonusBadge'
 import { GameSummary } from './components/GameSummary'
 import { ResultView } from './components/ResultView'
 import { TileGrid } from './components/TileGrid'
-import { MuteToggle, Timer } from './components/Timer'
+import { MuteToggle, SoundToggles, Timer } from './components/Timer'
 import { AdminPage } from './pages/AdminPage'
 import { PoolHome } from './pages/PoolHome'
+import { SoundsPage } from './pages/SoundsPage'
 
 /** Birthday surprise page: its own chunk, loaded only when the surprise round comes up. */
 const loadHbdPage = () => import('./pages/HbdPage')
@@ -54,6 +55,7 @@ const rememberedKey = {
 export default function App() {
   const path = window.location.pathname.replace(/\/+$/, '')
   if (path === '/admin') return <AdminPage />
+  if (path === '/sounds') return <SoundsPage />
   if (path === '/manage') window.history.replaceState(null, '', '/') // old link: album management now lives on the album screen
   return <PoolPage />
 }
@@ -159,6 +161,12 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
       cancelled = true
     }
   }, [gameKey, poolKey, onLeave])
+
+  // Music plays through the rounds; it fades out for the game-over jingle and when leaving the game.
+  useEffect(() => {
+    if (gameOver) sound.stopMusic()
+  }, [gameOver])
+  useEffect(() => () => sound.stopMusic(), [])
 
   const playAgain = () => {
     setGameKey((k) => k + 1)
@@ -290,7 +298,9 @@ function Round({ poolKey, gameId, photo, nextPhotoId, loadPhoto, roundNo, rounds
 
   const giftOpened = isGift && round.phase === 'result'
   useEffect(() => {
-    if (giftOpened) void markSurpriseSeen(poolKey).catch(() => undefined)
+    if (!giftOpened) return
+    sound.stopMusic()
+    void markSurpriseSeen(poolKey).catch(() => undefined)
   }, [giftOpened, poolKey])
 
   if (giftOpened && imageUrl) {
@@ -321,9 +331,11 @@ function Round({ poolKey, gameId, photo, nextPhotoId, loadPhoto, roundNo, rounds
           <div className="flex items-center gap-2">
             <BonusBadge pct={bonusPercent(round.opened)} />
             <Timer remainingMs={round.remainingMs} totalMs={round.totalMs} bonusCount={round.opened.size} />
+            {/* only 🔊 while playing (room for the title at 375 px); 🎵 is on the result screen */}
             <MuteToggle />
           </div>
         )}
+        {round.phase === 'result' && <SoundToggles />}
       </header>
 
       {/* Enter-only animations: never gate a phase change (and the running timer) on an exit animation. */}
@@ -343,6 +355,7 @@ function Round({ poolKey, gameId, photo, nextPhotoId, loadPhoto, roundNo, rounds
             rounds={rounds}
             onStart={() => {
               sound.unlock() // audio needs a user gesture on iOS
+              sound.startMusic()
               round.start()
             }}
           />

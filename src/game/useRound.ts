@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ROUND_SECONDS, TIME_PER_TILE_SECONDS } from './scoring'
+import { sound } from './sound'
 import type { GuessRequest, GuessResponse, LatLng, PublicPhoto } from './types'
 
 export type Phase = 'ready' | 'playing' | 'submitting' | 'result'
@@ -49,6 +50,7 @@ export function useRound(photo: PublicPhoto, grade: GradeGuess) {
       if (p !== 'playing') return
       if (!timedOut && !g) return
       stateRef.current.phase = 'submitting' // block re-entry before React re-renders
+      if (!timedOut) sound.play('guess') // a timeout already rang the alarm (Timer)
       setPhase('submitting')
       requestRef.current = { id: photo.id, guess: g, opened: [...o].sort((a, b) => a - b), timedOut }
       void send(requestRef.current)
@@ -87,6 +89,7 @@ export function useRound(photo: PublicPhoto, grade: GradeGuess) {
       if (current.has(index)) return
       const next = new Set(current).add(index)
       stateRef.current.opened = next // guard fast double-taps before React re-renders
+      sound.play('card')
       deadlineRef.current += TIME_PER_TILE_MS
       setRemainingMs(Math.max(0, deadlineRef.current - performance.now()))
       setOpened(next)
@@ -96,7 +99,9 @@ export function useRound(photo: PublicPhoto, grade: GradeGuess) {
 
   const placePin = useCallback(
     (ll: LatLng) => {
-      if (!tick()) setPin(ll)
+      if (tick()) return
+      sound.play('pin')
+      setPin(ll)
     },
     [tick],
   )

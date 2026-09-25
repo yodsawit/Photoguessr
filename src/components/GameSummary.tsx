@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { animate, AnimatePresence, motion, useMotionValue, useMotionValueEvent, useReducedMotion, useTransform } from 'motion/react'
 import { gameGrade, GRADES } from '../game/scoring'
 import type { GameProgress } from '../game/types'
 import { gradeTextColor, GradeMedal } from './GradeMedal'
 import { Button, Card } from './layout'
+import { SoundToggles } from './Timer'
+import { sound } from '../game/sound'
+import { barTickRate, medalSound } from '../game/sfx'
 
 type Props = {
   /** Total points (server total when available). */
@@ -26,17 +29,39 @@ export function GameSummary({ total, rounds, progress, onPlayAgain, onBack }: Pr
   const [shown, setShown] = useState(0)
   const [finished, setFinished] = useState(false)
   const width = useTransform(value, (v) => `${Math.min(v / max, 1) * 100}%`)
-  useMotionValueEvent(value, 'change', (v) => setShown(Math.round(v)))
+  // Sound: a tick every 10% of the bar (pitch rising), a sparkle when it passes the max,
+  // the medal jingle for the final grade when the count stops.
+  const lastStep = useRef(0)
+  const overPlayed = useRef(false)
+  useMotionValueEvent(value, 'change', (v) => {
+    setShown(Math.round(v))
+    const step = Math.floor((v / max) * 10)
+    if (step > lastStep.current) {
+      lastStep.current = step
+      sound.play('bar', { rate: barTickRate(v / max) })
+    }
+    if (v > max && !overPlayed.current) {
+      overPlayed.current = true
+      sound.play('overflow')
+    }
+  })
 
   useEffect(() => {
+    const done = () => {
+      setFinished(true)
+      sound.play(medalSound(gameGrade(total, rounds).tier))
+    }
+    lastStep.current = 0
+    overPlayed.current = false
     if (reduce) {
       value.set(total)
-      setFinished(true)
+      done()
       return
     }
-    const controls = animate(value, total, { duration: Math.min(4.2, 1.6 + total / 450), ease: [0.2, 0.7, 0.3, 1], onComplete: () => setFinished(true) })
+    value.set(0)
+    const controls = animate(value, total, { duration: Math.min(4.2, 1.6 + total / 450), ease: [0.2, 0.7, 0.3, 1], onComplete: done })
     return () => controls.stop()
-  }, [reduce, total, value])
+  }, [reduce, total, rounds, value])
 
   const info = gameGrade(shown, rounds)
   const over = shown > max
@@ -45,6 +70,9 @@ export function GameSummary({ total, rounds, progress, onPlayAgain, onBack }: Pr
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-8">
       <Card className="max-w-lg overflow-visible">
+        <div className="-mt-1 mb-1 flex justify-end">
+          <SoundToggles />
+        </div>
         <p className="text-2xl font-extrabold text-ink">🎉 Game over</p>
 
         {/* fixed-height stage: the medal (with crown/ribbons) grows inside it, the score never moves */}

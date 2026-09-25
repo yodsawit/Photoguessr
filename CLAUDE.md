@@ -48,6 +48,16 @@ GeoGuessr-style browser game played on private, auto-expiring pools of the owner
   memory) and saves `pools/<id>/highscore.json` when a finished game beats it; shown on album home.
   Admin reset: `POST /api/highscore/reset` with `X-Admin-Code` + the album key as Bearer.
 
+## Sound (`src/game/sfx.ts` catalogue, `src/game/sound.ts` player)
+- Sound files are **CC0 only** (or made for the project), live in `public/sfx/` as mp3 and are credited in
+  `CREDITS.md`. Never copy GeoGuessr's (or any game's) own sounds or music.
+- Effects: pin, guess, card, score count ticks, pinpoint, round grade (4 tiers), game-over bar ticks (pitch rises),
+  overflow, final medal (4 tiers), Gartic-style alarm over the **last 2 s** (`ALARM_SECONDS`, replaces the last
+  two ticks; stops if a card adds time or the player guesses). Quiet calm-piano music loops during a game
+  (fades out at game over). 🔊 all-sound toggle (also while playing) and 🎵 music toggle (result + game over),
+  remembered per device. `/sounds` lists every sound.
+- Audio starts only after the round-1 Start tap (iOS); every call is a silent no-op when locked/muted.
+
 ## Wording
 - Players and owners see **album / albums**. Code, API routes (`/api/pools`, `/api/pool`), R2 layout
   (`pools/…`) and storage keys keep the internal name **pool**. Never show "pool" in UI, user docs
