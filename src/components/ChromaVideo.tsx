@@ -13,6 +13,8 @@ type Props = {
    * green background is un-mixed out so the flames stay orange instead of turning olive.
    */
   mode?: 'key' | 'fire'
+  /** Pause the clip (and its drawing) while true, e.g. while something covers it; resumes after. */
+  frozen?: boolean
 }
 
 export type ChromaVideoHandle = { play: () => void }
@@ -22,7 +24,7 @@ export type ChromaVideoHandle = { play: () => void }
  * `<video>` can't do transparency on iPhone (no WebM alpha), so this keys every frame instead.
  * The video itself is muted, inline and hidden; if WebGL is unavailable the video is shown as-is.
  */
-export const ChromaVideo = forwardRef<ChromaVideoHandle, Props>(function ChromaVideo({ src, className, loop = true, autoPlay = true, onEnded, onError, mode = 'key' }, ref) {
+export const ChromaVideo = forwardRef<ChromaVideoHandle, Props>(function ChromaVideo({ src, className, loop = true, autoPlay = true, onEnded, onError, mode = 'key', frozen = false }, ref) {
   const video = useRef<HTMLVideoElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const [fallback, setFallback] = useState(false)
@@ -65,10 +67,13 @@ export const ChromaVideo = forwardRef<ChromaVideoHandle, Props>(function ChromaV
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 
-    let raf = 0
+    // Upload + draw only when the video has a NEW frame (requestVideoFrameCallback, Safari 15.4+ /
+    // Chrome): a 30 fps clip on a 60-120 Hz screen would otherwise be re-uploaded 2-4x per frame,
+    // which made the page lag in Safari. Falls back to requestAnimationFrame.
+    const perFrame = typeof v.requestVideoFrameCallback === 'function'
+    let pending = 0
     let visible = true
-    const draw = () => {
-      raf = 0
+    const render = () => {
       if (v.readyState >= 2 && v.videoWidth) {
         if (c.width !== v.videoWidth || c.height !== v.videoHeight) {
           c.width = v.videoWidth
@@ -80,15 +85,32 @@ export const ChromaVideo = forwardRef<ChromaVideoHandle, Props>(function ChromaV
         gl.clear(gl.COLOR_BUFFER_BIT)
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
       }
-      if (visible && !v.paused && !v.ended) raf = requestAnimationFrame(draw)
     }
+    const onFrame = () => {
+      pending = 0
+      render()
+      schedule()
+    }
+    const schedule = () => {
+      if (pending || !visible || v.paused || v.ended) return
+      pending = perFrame ? v.requestVideoFrameCallback(onFrame) : requestAnimationFrame(onFrame)
+    }
+    const cancel = () => {
+      if (!pending) return
+      if (perFrame) v.cancelVideoFrameCallback(pending)
+      else cancelAnimationFrame(pending)
+      pending = 0
+    }
+    // A paused video still needs one draw after loading or seeking (the first/current frame).
     const kick = () => {
-      if (!raf) raf = requestAnimationFrame(draw)
+      requestAnimationFrame(render)
+      schedule()
     }
     // Draw only while playing and on screen.
     const io = new IntersectionObserver(([e]) => {
       visible = e.isIntersecting
       if (visible) kick()
+      else cancel()
     })
     io.observe(c)
     v.addEventListener('play', kick)
@@ -96,7 +118,7 @@ export const ChromaVideo = forwardRef<ChromaVideoHandle, Props>(function ChromaV
     v.addEventListener('loadeddata', kick)
     kick()
     return () => {
-      if (raf) cancelAnimationFrame(raf)
+      cancel()
       io.disconnect()
       v.removeEventListener('play', kick)
       v.removeEventListener('seeked', kick)
@@ -107,6 +129,13 @@ export const ChromaVideo = forwardRef<ChromaVideoHandle, Props>(function ChromaV
       // No loseContext(): StrictMode re-runs this effect on the same canvas and would get a dead context.
     }
   }, [mode])
+
+  useEffect(() => {
+    const v = video.current
+    if (!v) return
+    if (frozen) v.pause()
+    else if (autoPlay) void v.play().catch(() => undefined)
+  }, [frozen, autoPlay])
 
   return (
     <>

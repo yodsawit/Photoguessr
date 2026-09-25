@@ -55,17 +55,37 @@ const rememberedKey = {
 }
 
 export default function App() {
-  const path = window.location.pathname.replace(/\/+$/, '')
+  const [path, setPath] = useState(() => window.location.pathname.replace(/\/+$/, ''))
+  const [fadeFromBlack, setFadeFromBlack] = useState(false)
   if (path === '/admin') return <AdminPage />
   if (path === '/sounds') return <SoundsPage />
-  if (path === '/hbd')
+  if (path === '/hbd') {
+    // The birthday page ends on black; switch to the album page in place (no reload, so no flash)
+    // and let the black fade away over it.
+    const exit = () => {
+      window.history.pushState(null, '', '/')
+      setFadeFromBlack(true)
+      setPath('')
+    }
     return (
       <Suspense fallback={null}>
-        <HbdParty />
+        <HbdParty onExit={exit} />
       </Suspense>
     )
+  }
   if (path === '/manage') window.history.replaceState(null, '', '/') // old link: album management now lives on the album screen
-  return <PoolPage />
+  return (
+    <>
+      <PoolPage />
+      {fadeFromBlack && (
+        <div
+          aria-hidden
+          className="hbd-fade-from-black pointer-events-none fixed inset-0 z-[200] bg-black"
+          onAnimationEnd={() => setFadeFromBlack(false)}
+        />
+      )}
+    </>
+  )
 }
 
 /** One key per album: enter it once, then album home (status/delete) and the game share it. */

@@ -153,3 +153,108 @@ body {
     opacity: 0;
   }
 }
+
+/* /hbd party loops: CSS (compositor thread) instead of per-frame JS, so Safari stays smooth while
+   the green-screen videos are being drawn. Per-element timing comes from CSS variables. */
+.hbd-bob {
+  animation: hbd-bob var(--dur, 1s) ease-in-out var(--delay, 0s) infinite;
+}
+@keyframes hbd-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--r, 0deg)) scale(1);
+  }
+  50% {
+    transform: translateY(-10px) rotate(calc(var(--r, 0deg) * -1)) scale(var(--s, 1.05));
+  }
+}
+.hbd-wobble {
+  animation: hbd-wobble 2.4s ease-in-out infinite;
+}
+@keyframes hbd-wobble {
+  0%,
+  100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+.hbd-pulse {
+  animation: hbd-pulse 0.9s ease-in-out infinite;
+}
+@keyframes hbd-pulse {
+  50% {
+    transform: scale(1.08);
+  }
+}
+.hbd-letter {
+  animation: hbd-letter 0.55s ease-in-out var(--delay, 0s) infinite;
+}
+@keyframes hbd-letter {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-6deg);
+  }
+  50% {
+    transform: translateY(-0.18em) rotate(6deg);
+  }
+}
+.hbd-flicker {
+  transform-origin: bottom;
+  animation: hbd-flicker var(--dur, 0.8s) ease-in-out infinite;
+}
+@keyframes hbd-flicker {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  25% {
+    transform: scale(0.9, 1.35);
+  }
+  50% {
+    transform: scale(1.1, 0.9);
+  }
+  75% {
+    transform: scale(0.95, 1.2);
+  }
+}
+.hbd-fall {
+  animation: hbd-fall var(--dur, 4s) linear var(--delay, 0s) infinite;
+}
+@keyframes hbd-fall {
+  0% {
+    transform: translateY(-20px) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(105vh) rotate(var(--spin, 360deg));
+    opacity: 0.8;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hbd-bob,
+  .hbd-wobble,
+  .hbd-pulse,
+  .hbd-letter,
+  .hbd-flicker,
+  .hbd-fall {
+    animation: none;
+  }
+}
+
+/* after /hbd: the black screen dissolves into the album page */
+.hbd-fade-from-black {
+  animation: hbd-fade-from-black 1.8s ease-in-out forwards;
+}
+@keyframes hbd-fade-from-black {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}

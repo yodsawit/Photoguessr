@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
 import { motion, useAnimationControls, useReducedMotion } from 'motion/react'
 import { ChromaVideo, type ChromaVideoHandle } from '../components/ChromaVideo'
 
@@ -41,7 +41,8 @@ const TYPE_MS = 90
 
 type Burst = { id: number; x: number; y: number }
 
-export default function HbdParty() {
+/** `onExit`: after the last line on the black screen; the app fades from black into the album page. */
+export default function HbdParty({ onExit }: { onExit: () => void }) {
   const reduce = useReducedMotion()
   const song = useRef<HTMLAudioElement>(null)
   const boom = useRef<HTMLAudioElement>(null)
@@ -116,7 +117,7 @@ export default function HbdParty() {
     }, EXPLOSION_DELAY_MS)
   }
 
-  if (blackout) return <BlackScreen />
+  if (blackout) return <BlackScreen onExit={onExit} />
 
   return (
     <motion.main
@@ -127,61 +128,71 @@ export default function HbdParty() {
       <audio ref={song} src={`${BASE}song.mp3`} loop preload="auto" onError={() => setHasSong(false)} />
       <audio ref={boom} src="/sfx/overflow.mp3" preload="auto" />
 
-      {/* soft party blobs */}
-      <div aria-hidden className="pointer-events-none absolute -left-20 -top-24 h-72 w-72 rounded-full bg-peach/50 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -right-16 top-1/3 h-72 w-72 rounded-full bg-sky/40 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -bottom-24 left-1/4 h-72 w-72 rounded-full bg-butter/60 blur-3xl" />
+      {/* soft party glows: plain gradients, no blur filter (blur is expensive in Safari) */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(18rem 18rem at 0% 0%, rgba(247,183,155,0.45), transparent 70%), radial-gradient(18rem 18rem at 100% 40%, rgba(167,205,230,0.4), transparent 70%), radial-gradient(18rem 18rem at 35% 100%, rgba(246,222,156,0.55), transparent 70%)',
+        }}
+      />
 
       {/* layer 1 (top): the birthday title, after the tap */}
-      {stage === 2 && <MemeTitle reduce={!!reduce} />}
+      {stage === 2 && <MemeTitle />}
 
       {/* layer 4 (bottom): the photo, with layer 3 (cats) overlapping its edges */}
       <div className="relative z-10">
-        <motion.figure
-          initial={{ scale: 0.6, opacity: 0, rotate: -6 }}
-          animate={reduce ? { scale: 1, opacity: 1, rotate: -2 } : { scale: 1, opacity: 1, rotate: [-3, 3, -3] }}
-          transition={reduce ? { duration: 0.4 } : { rotate: { duration: 2.4, repeat: Infinity, ease: 'easeInOut' }, default: { type: 'spring', stiffness: 160, damping: 14 } }}
-          className="relative rounded-3xl bg-white p-1.5 pb-2 shadow-[0_24px_60px_-22px_rgba(120,90,60,0.55)] ring-1 ring-sand"
-        >
-          <img
-            src={`${BASE}photo.webp`}
-            alt="The birthday girl"
-            draggable={false}
-            className={`w-auto max-w-[min(calc(100vw-2.25rem),40rem)] rounded-2xl object-cover transition-[max-height] duration-500 ${stage === 2 ? 'max-h-[62dvh]' : 'max-h-[82dvh]'}`}
-          />
-          {stage === 1 && <figcaption className="mt-2 text-center text-lg font-black text-ink">who is this?? 👀</figcaption>}
-        </motion.figure>
+        <div className="hbd-wobble">
+          <motion.figure
+            initial={{ scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={reduce ? { duration: 0.4 } : { type: 'spring', stiffness: 160, damping: 14 }}
+            className="relative rounded-3xl bg-white p-1.5 pb-2 shadow-[0_24px_60px_-22px_rgba(120,90,60,0.55)] ring-1 ring-sand"
+          >
+            <img
+              src={`${BASE}photo.webp`}
+              alt="The birthday girl"
+              draggable={false}
+              className={`w-auto max-w-[min(calc(100vw-2.25rem),40rem)] rounded-2xl object-cover transition-[max-height] duration-500 ${stage === 2 ? 'max-h-[62dvh]' : 'max-h-[82dvh]'}`}
+            />
+            {stage === 1 && <figcaption className="mt-2 text-center text-lg font-black text-ink">who is this?? 👀</figcaption>}
+          </motion.figure>
+        </div>
 
         {CATS.filter((c) => !brokenCats.has(c.file)).map((cat, i) => (
           <motion.div
             key={cat.file}
             className="pointer-events-none absolute z-20"
             style={{ ...cat.style, width: `${cat.w * 100}%` }}
-            initial={{ scale: 0, rotate: 0 }}
-            animate={
-              reduce
-                ? { scale: 1, rotate: cat.rotate }
-                : { scale: stage === 2 ? [1, 1.12, 1] : [1, 1.05, 1], rotate: [cat.rotate, -cat.rotate, cat.rotate], y: [0, -10, 0] }
-            }
-            transition={reduce ? { duration: 0.3 } : { duration: stage === 2 ? cat.dur * 0.6 : cat.dur, repeat: Infinity, ease: 'easeInOut', delay: i * 0.07 }}
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ duration: 0.35, delay: i * 0.07 }}
           >
-            <ChromaVideo
-              src={`${BASE}${cat.file}`}
-              onError={() => setBrokenCats((s) => new Set(s).add(cat.file))}
-              className={`block h-auto w-full drop-shadow-[0_8px_10px_rgba(60,40,20,0.3)] ${i % 3 === 1 ? '-scale-x-100' : ''}`}
-            />
+            <div
+              className="hbd-bob"
+              style={
+                {
+                  '--r': `${cat.rotate}deg`,
+                  '--dur': `${stage === 2 ? cat.dur * 0.6 : cat.dur}s`,
+                  '--delay': `${i * 0.07}s`,
+                  '--s': stage === 2 ? 1.12 : 1.05,
+                } as CSSProperties
+              }
+            >
+              <ChromaVideo
+                src={`${BASE}${cat.file}`}
+                frozen={exploding} // covered by the explosion: skip their frames so it stays smooth
+                onError={() => setBrokenCats((s) => new Set(s).add(cat.file))}
+                className={`block h-auto w-full ${i % 3 === 1 ? '-scale-x-100' : ''}`}
+              />
+            </div>
           </motion.div>
         ))}
       </div>
 
       {stage === 1 && (
-        <motion.p
-          className="relative z-30 mt-6 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-coral shadow"
-          animate={reduce ? undefined : { scale: [1, 1.08, 1] }}
-          transition={{ duration: 0.9, repeat: Infinity }}
-        >
-          tap anywhere 👀
-        </motion.p>
+        <p className="hbd-pulse relative z-30 mt-6 rounded-full bg-white/90 px-4 py-2 text-sm font-extrabold text-coral shadow">tap anywhere 👀</p>
       )}
 
       {/* layer 2: the explosion, under the title, above the cats; plays once after the reveal */}
@@ -230,7 +241,7 @@ export default function HbdParty() {
 }
 
 /** WordArt-style "HAPPY BIRTHDAY!!": rainbow letters, white outline, chunky 3D shadow, all bouncing. */
-function MemeTitle({ reduce }: { reduce: boolean }) {
+function MemeTitle() {
   let n = 0
   return (
     <motion.h1
@@ -245,20 +256,21 @@ function MemeTitle({ reduce }: { reduce: boolean }) {
           {[...word].map((ch) => {
             const i = n++
             return (
-              <motion.span
+              <span
                 key={i}
-                className="inline-block"
-                style={{
-                  color: LETTER_COLORS[i % LETTER_COLORS.length],
-                  WebkitTextStroke: '0.06em #fff',
-                  paintOrder: 'stroke fill',
-                  textShadow: '0 0.08em 0 #b3471b, 0 0.14em 0.12em rgba(80,30,10,0.35)',
-                }}
-                animate={reduce ? undefined : { y: ['0em', '-0.18em', '0em'], rotate: [-6, 6, -6] }}
-                transition={{ duration: 0.55, repeat: Infinity, ease: 'easeInOut', delay: i * 0.06 }}
+                className="hbd-letter inline-block"
+                style={
+                  {
+                    color: LETTER_COLORS[i % LETTER_COLORS.length],
+                    WebkitTextStroke: '0.06em #fff',
+                    paintOrder: 'stroke fill',
+                    textShadow: '0 0.08em 0 #b3471b, 0 0.14em 0.12em rgba(80,30,10,0.35)',
+                    '--delay': `${i * 0.06}s`,
+                  } as CSSProperties
+                }
               >
                 {ch}
-              </motion.span>
+              </span>
             )
           })}
         </span>
@@ -297,12 +309,14 @@ function FlameRow({ reduce }: { reduce: boolean }) {
       {Array.from({ length: 12 }, (_, i) => (
         <motion.span
           key={i}
-          className="origin-bottom text-4xl sm:text-5xl"
+          className="inline-block text-4xl sm:text-5xl"
           initial={{ y: 60 }}
-          animate={reduce ? { y: 0 } : { y: 0, scaleY: [1, 1.35, 0.9, 1.2, 1], scaleX: [1, 0.9, 1.1, 0.95, 1] }}
-          transition={reduce ? { duration: 0.3 } : { y: { type: 'spring', stiffness: 200, damping: 12, delay: 0.2 + i * 0.03 }, default: { duration: 0.7 + (i % 4) * 0.12, repeat: Infinity } }}
+          animate={{ y: 0 }}
+          transition={reduce ? { duration: 0.3 } : { type: 'spring', stiffness: 200, damping: 12, delay: 0.2 + i * 0.03 }}
         >
-          🔥
+          <span className="hbd-flicker inline-block" style={{ '--dur': `${0.7 + (i % 4) * 0.12}s` } as CSSProperties}>
+            🔥
+          </span>
         </motion.span>
       ))}
     </div>
@@ -312,14 +326,19 @@ function FlameRow({ reduce }: { reduce: boolean }) {
 function Confetti() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-30 overflow-hidden">
-      {Array.from({ length: 34 }, (_, i) => (
-        <motion.span
+      {Array.from({ length: 24 }, (_, i) => (
+        <span
           key={i}
-          className="absolute -top-4 block h-3 w-2 rounded-sm"
-          style={{ left: `${(i * 29 + 3) % 100}%`, background: CONFETTI[i % CONFETTI.length] }}
-          initial={{ y: -20, rotate: 0, opacity: 0 }}
-          animate={{ y: '105vh', rotate: 360 + i * 40, opacity: [0, 1, 1, 0.8] }}
-          transition={{ duration: 3.2 + (i % 5) * 0.6, delay: (i % 8) * 0.3, repeat: Infinity, ease: 'linear' }}
+          className="hbd-fall absolute -top-4 block h-3 w-2 rounded-sm"
+          style={
+            {
+              left: `${(i * 29 + 3) % 100}%`,
+              background: CONFETTI[i % CONFETTI.length],
+              '--dur': `${3.2 + (i % 5) * 0.6}s`,
+              '--delay': `${(i % 8) * 0.3}s`,
+              '--spin': `${360 + i * 40}deg`,
+            } as CSSProperties
+          }
         />
       ))}
     </div>
@@ -329,9 +348,9 @@ function Confetti() {
 /**
  * After the cut: a white flash, then black. Each tap fades the current line out, then types the next
  * one in light grey, centred. A tap while a line is still typing finishes it (so no line is skipped);
- * a tap after the last line fades it out and goes home.
+ * a tap after the last line fades it out, then the app fades from black into the album page.
  */
-function BlackScreen() {
+function BlackScreen({ onExit }: { onExit: () => void }) {
   const [flash, setFlash] = useState(true)
   const [line, setLine] = useState(-1)
   const [typed, setTyped] = useState(0)
@@ -356,7 +375,7 @@ function BlackScreen() {
     if (typed < text.length) return setTyped(text.length)
     if (line === BLACK_LINES.length - 1) {
       setFading(true) // the last line fades out too, then the game home page
-      window.setTimeout(() => window.location.assign('/'), FADE_MS)
+      window.setTimeout(onExit, FADE_MS)
       return
     }
     const next = () => {
