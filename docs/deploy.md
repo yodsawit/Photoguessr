@@ -35,6 +35,7 @@ Free plan notes:
 `npm run dev` starts the API (:8787) and Vite (5173, or the next free port) with `/api` proxied.
 - Look for both `[api] PhotoGuessr server on :8787` and `[web] Local: ...` in the output.
 - Without `.env`, storage is in-memory and the terminal prints a throwaway `dev admin code: …` to use at `/admin`.
+- **Port 8787 serves the last `npm run build`** (the files in `dist/`), not live code. For instant updates use the Vite address (`:5173`, or the next free port), or run `npm run build` after changes.
 
 ### Against real R2 (optional)
 Copy `.env.example` → `.env` and fill it in. Use the **same** `KEY_PEPPER` as Render, because both use the same bucket. Then run `npm run dev`; the log shows `storage: R2`.
