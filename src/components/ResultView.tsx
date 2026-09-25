@@ -27,7 +27,7 @@ function FitBoth({ answer, guess }: { answer: Answer; guess: GuessResponse['gues
 }
 
 export function ResultView({ photo, imageUrl, result, isLastRound, onNext }: Props) {
-  const { guess, distanceKm, baseScore, multiplier, finalScore, openedCount, timedOut, answer } = result
+  const { guess, distanceKm, baseScore, bonusPct, finalScore, openedCount, timedOut, answer } = result
   const noScoreReason = !guess ? 'No pin dropped in time' : openedCount === 0 ? 'Time ran out before opening a card' : null
 
   return (
@@ -70,7 +70,7 @@ export function ResultView({ photo, imageUrl, result, isLastRound, onNext }: Pro
               </p>
             </div>
             <p className="rounded-2xl bg-butter/40 px-3 py-2 text-sm font-semibold text-ink tabular-nums">
-              {baseScore.toFixed(1)} <span className="text-muted">×</span> {multiplier.toFixed(1)} bonus
+              {baseScore.toFixed(1)} pts <span className="text-muted">×</span> {bonusPct}% bonus
             </p>
           </div>
 

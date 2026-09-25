@@ -9,11 +9,11 @@ const formatWhen = (iso: string) =>
 type Props = {
   poolKey: string
   onPlay: () => void
-  /** Leave this pool (optionally with a message for the key screen). */
+  /** Leave this album (optionally with a message for the key screen). */
   onLeave: (reason?: string | null) => void
 }
 
-/** Everything about one pool behind one key: status, play, delete. */
+/** Everything about one album behind one key: status, play, delete. */
 export function PoolHome({ poolKey, onPlay, onLeave }: Props) {
   const [status, setStatus] = useState<PoolStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -22,7 +22,7 @@ export function PoolHome({ poolKey, onPlay, onLeave }: Props) {
 
   const handle = useCallback(
     (err: unknown) => {
-      if (err instanceof ApiError && (err.status === 401 || err.status === 404)) onLeave('That pool key is not valid, or the pool has expired.')
+      if (err instanceof ApiError && (err.status === 401 || err.status === 404)) onLeave('That album key is not valid, or the album has expired.')
       else if (err instanceof ApiError && err.status === 429) setError('Too many wrong keys from this network. Wait a minute and try again.')
       else setError(err instanceof Error ? err.message : 'Something went wrong')
     },
@@ -41,7 +41,7 @@ export function PoolHome({ poolKey, onPlay, onLeave }: Props) {
     setBusy(true)
     try {
       await deletePool(poolKey)
-      onLeave('Pool deleted. Its key no longer works.')
+      onLeave('Album deleted. Its key no longer works.')
     } catch (err) {
       handle(err)
     } finally {
@@ -52,7 +52,7 @@ export function PoolHome({ poolKey, onPlay, onLeave }: Props) {
   return (
     <CenteredPage>
       <Card>
-        <Title>Your pool</Title>
+        <Title>Your album</Title>
         {!status ? (
           <p className="mt-5 font-bold text-muted">{error ?? 'Loading…'}</p>
         ) : (
@@ -70,7 +70,7 @@ export function PoolHome({ poolKey, onPlay, onLeave }: Props) {
 
             {status.empty ? (
               <p className="rounded-xl bg-butter/40 px-3 py-2 text-sm font-semibold text-ink">
-                No photos yet — this pool is deleted at {formatWhen(status.expiresAt)} unless you add one. Add photos from your iPhone with the
+                No photos yet — this album is deleted at {formatWhen(status.expiresAt)} unless you add one. Add photos from your iPhone with the
                 “Add to PhotoGuessr” Shortcut using this key.
               </p>
             ) : (
@@ -87,12 +87,12 @@ export function PoolHome({ poolKey, onPlay, onLeave }: Props) {
             </Button>
 
             <details className="rounded-2xl border border-sand bg-white/70 px-3 py-2 text-sm">
-              <summary className="cursor-pointer py-2 font-bold text-ink">Pool key &amp; settings</summary>
+              <summary className="cursor-pointer py-2 font-bold text-ink">Album key &amp; settings</summary>
               <div className="mt-2 space-y-3 pb-2">
                 <KeyCard value={poolKey} />
-                <p className="text-xs text-muted">Anyone with this key can play, add and delete photos, and delete the pool.</p>
+                <p className="text-xs text-muted">Anyone with this key can play, add and delete photos, and delete the album.</p>
                 <Button tone="coral" onClick={remove} disabled={busy}>
-                  {confirming ? 'Tap again to delete everything' : 'Delete pool now'}
+                  {confirming ? 'Tap again to delete everything' : 'Delete album now'}
                 </Button>
                 <Button tone="quiet" onClick={() => onLeave()}>
                   Use another key

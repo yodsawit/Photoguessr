@@ -18,12 +18,21 @@ GeoGuessr-style browser game played on private, auto-expiring pools of the owner
 
 ## Game rules (source of truth: `src/game/scoring.ts`)
 - Photo hidden under a 4x4 grid of cards; player opens 1 at a time, must open >= 1 before guessing.
-- Tile bonus: corner 0.1, side 0.2, middle 0.5. Multiplier = 1.0 + sum of values of tiles
-  still hidden (5.0 theoretical, 4.9 practical max).
-- 30 s per round (whole round). At 0 s: auto-submit if >= 1 tile open and a pin is placed, else 0.
-- Score = round(100 * e^(-10 * d / 1000) * multiplier), d = haversine km (base 100, D = 1000 km).
-- Result: full photo, both pins + line, distance, district + province (English), photo date, score.
-- Currently 1 round per game (`ROUNDS` in `src/App.tsx`).
+- **Bonus %** starts at 0%; every card still hidden adds corner 5%, side 10%, middle 25%
+  (all hidden = 200%, best real case 195%, all opened = 0%).
+- **Distance points** = 100 * e^(-10 * min(d / 500 km, 1)), d = haversine km.
+- **Final** = round(distance points * bonus% / 100). 0 without a pin or without an opened card.
+- **Clock**: 30 s per round, **+10 s per opened card** ("+10s" pop). Last 10 s: gentle number bump
+  each second + soft Web Audio tick (`src/game/sound.ts`, mute toggle remembered per device).
+  At 0 s: auto-submit (0 if no card opened or no pin).
+- **10 rounds per game** (`ROUNDS` in `src/App.tsx`); albums with fewer photos play each once.
+- Result: full photo, both pins + line, distance, district + province (English), photo date,
+  "pts x bonus%" and the final score.
+
+## Wording
+- Players and owners see **album / albums**. Code, API routes (`/api/pools`, `/api/pool`), R2 layout
+  (`pools/…`) and storage keys keep the internal name **pool**. Never show "pool" in UI, user docs
+  or user-facing error messages.
 
 ## Architecture (v2: private expiring pools)
 - **Render** runs `server/index.ts` (Hono): serves `dist/` + `/api/*`. **R2** bucket `photoguessr`

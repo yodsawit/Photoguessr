@@ -2,14 +2,16 @@ import type { LatLng } from './types'
 
 export const GRID = 4
 export const TILE_COUNT = GRID * GRID
-export const BASE_MULTIPLIER = 1.0
 export const BASE_SCORE = 100
-/** GeoGuessr map-size constant D, in km. */
-export const MAP_SIZE_KM = 1000
+/** GeoGuessr map-size constant D, in km. Distances beyond D score (almost) nothing. */
+export const MAP_SIZE_KM = 500
+/** Starting clock per round; every opened card adds TIME_PER_TILE_SECONDS. */
 export const ROUND_SECONDS = 30
+export const TIME_PER_TILE_SECONDS = 10
 
 export type TileKind = 'corner' | 'side' | 'middle'
-export const TILE_VALUE: Record<TileKind, number> = { corner: 0.1, side: 0.2, middle: 0.5 }
+/** Bonus % kept by each card while it stays hidden (base bonus is 0%; all hidden = 200%). */
+export const TILE_BONUS_PCT: Record<TileKind, number> = { corner: 5, side: 10, middle: 25 }
 
 const EARTH_RADIUS_KM = 6371.0088
 
@@ -21,9 +23,9 @@ export function haversineKm(a: LatLng, b: LatLng): number {
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)))
 }
 
-/** GeoGuessr formula: BASE * e^(-10 d / D). Unrounded. */
+/** BASE * e^(-10 * min(d / D, 1)). Unrounded. */
 export function geoScore(distanceKm: number): number {
-  return BASE_SCORE * Math.exp((-10 * distanceKm) / MAP_SIZE_KM)
+  return BASE_SCORE * Math.exp(-10 * Math.min(distanceKm / MAP_SIZE_KM, 1))
 }
 
 /** Tile index is row-major, 0..15. */
@@ -37,30 +39,31 @@ export function tileKind(index: number): TileKind {
   return 'middle'
 }
 
-/** 1.0 + value of every tile still hidden. Rounded to 1 decimal to kill float noise. */
-export function multiplier(opened: ReadonlySet<number>): number {
-  let m = BASE_MULTIPLIER
-  for (let i = 0; i < TILE_COUNT; i++) if (!opened.has(i)) m += TILE_VALUE[tileKind(i)]
-  return Math.round(m * 10) / 10
+/** Sum of the bonus % of every card still hidden: 0..200. */
+export function bonusPercent(opened: ReadonlySet<number>): number {
+  let pct = 0
+  for (let i = 0; i < TILE_COUNT; i++) if (!opened.has(i)) pct += TILE_BONUS_PCT[tileKind(i)]
+  return pct
 }
 
 export type RoundResult = {
   guess: LatLng | null
   distanceKm: number | null
   baseScore: number
-  multiplier: number
+  /** Bonus kept, in percent (0..200). */
+  bonusPct: number
   finalScore: number
   openedCount: number
   timedOut: boolean
 }
 
-/** A guess only counts with a pin and at least one opened tile; otherwise it scores 0. */
+/** final = round(base × bonus%). Counts only with a pin and at least one opened card; otherwise 0. */
 export function scoreRound(answer: LatLng, guess: LatLng | null, opened: ReadonlySet<number>, timedOut: boolean): RoundResult {
-  const mult = multiplier(opened)
+  const bonusPct = bonusPercent(opened)
   if (!guess || opened.size === 0) {
-    return { guess, distanceKm: guess ? haversineKm(answer, guess) : null, baseScore: 0, multiplier: mult, finalScore: 0, openedCount: opened.size, timedOut }
+    return { guess, distanceKm: guess ? haversineKm(answer, guess) : null, baseScore: 0, bonusPct, finalScore: 0, openedCount: opened.size, timedOut }
   }
   const distanceKm = haversineKm(answer, guess)
   const baseScore = geoScore(distanceKm)
-  return { guess, distanceKm, baseScore, multiplier: mult, finalScore: Math.round(baseScore * mult), openedCount: opened.size, timedOut }
+  return { guess, distanceKm, baseScore, bonusPct, finalScore: Math.round((baseScore * bonusPct) / 100), openedCount: opened.size, timedOut }
 }

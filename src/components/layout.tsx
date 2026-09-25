@@ -61,7 +61,7 @@ export function FooterLinks() {
         Play
       </a>
       <a href="/admin" className="px-2 py-3 hover:text-ink">
-        Create pool
+        Create album
       </a>
     </nav>
   )

@@ -71,7 +71,7 @@ export class PoolService {
     const hasPhotos = await this.store.hasPhotos(pool.poolId)
     if (isExpired(pool, hasPhotos, this.now())) {
       await this.store.deletePool(pool)
-      throw new HttpError(404, 'This pool has expired')
+      throw new HttpError(404, 'This album has expired')
     }
     const touched = { ...pool, lastActivityAt: this.iso() }
     await this.store.putPool(touched)

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createPool } from '../game/api'
 import { Button, Card, CenteredPage, Title } from '../components/layout'
 
-/** Create a pool with the admin code. Its one key is shown exactly once. */
+/** Create an album with the admin code. Its one key is shown exactly once. */
 export function AdminPage() {
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
@@ -26,7 +26,7 @@ export function AdminPage() {
   return (
     <CenteredPage>
       <Card>
-        <Title>Create a pool</Title>
+        <Title>Create an album</Title>
         {!key ? (
           <form onSubmit={submit} className="mt-5 space-y-4">
             <label className="block text-left">
@@ -41,7 +41,7 @@ export function AdminPage() {
             </label>
             {error && <p className="rounded-xl bg-peach/25 px-3 py-2 text-sm font-semibold text-coral">{error}</p>}
             <Button type="submit" disabled={busy || !code}>
-              {busy ? 'Creating…' : 'Create pool'}
+              {busy ? 'Creating…' : 'Create album'}
             </Button>
           </form>
         ) : (
@@ -52,11 +52,11 @@ export function AdminPage() {
             <KeyCard value={key} />
             <ul className="space-y-1 text-xs text-muted">
               <li>• Put it in your iPhone Shortcut to add photos, and share it with players.</li>
-              <li>• Anyone with the key can play, add and delete photos, and delete the pool.</li>
-              <li>• An empty pool is deleted 1 hour after it becomes empty. With photos, it's deleted after 3 days without any play, upload or delete.</li>
+              <li>• Anyone with the key can play, add and delete photos, and delete the album.</li>
+              <li>• An empty album is deleted 1 hour after it becomes empty. With photos, it's deleted after 3 days without any play, upload or delete.</li>
             </ul>
             <a href="/" className="block">
-              <Button tone="coral">Open this pool</Button>
+              <Button tone="coral">Open this album</Button>
             </a>
             <Button tone="quiet" onClick={() => setKey(null)}>
               Create another
@@ -82,7 +82,7 @@ export function KeyCard({ value }: { value: string }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-2xl bg-cream p-3 text-left">
       <div>
-        <p className="text-xs font-bold uppercase tracking-wide text-muted">Pool key</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-muted">Album key</p>
         <p className="font-mono text-3xl font-extrabold tracking-[0.3em] text-ink select-all">{value}</p>
       </div>
       <button type="button" onClick={copy} className="h-11 shrink-0 rounded-xl border border-sand bg-white px-4 text-sm font-bold text-ink active:scale-95">

@@ -1,10 +1,10 @@
 # iPhone Shortcut: "Add to PhotoGuessr"
 
-Adds photos from the Photos app to your pool. The photo is shrunk and cleaned **on the phone**
+Adds photos from the Photos app to your album. The photo is shrunk and cleaned **on the phone**
 (1920 px JPEG, no metadata, ~360 KB instead of ~2.5 MB). Only the image pixels and the answer
 (latitude, longitude, date) are sent. Originals and your iCloud library stay private.
 
-You need: your **pool key** (6 characters, from `/admin`) and your game URL, e.g.
+You need: your **album key** (6 characters, from `/admin`) and your game URL, e.g.
 `https://photoguessr.onrender.com`.
 
 ## Build it (Shortcuts app → + → new shortcut)
@@ -24,7 +24,7 @@ You need: your **pool key** (6 characters, from `/admin`) and your game URL, e.g
       - URL: `https://YOUR-SERVICE.onrender.com/api/photos`. Include `https://`, or `http://` for a
         local test such as `http://192.168.x.x:8787/api/photos`.
       - Method: **POST**
-      - Headers: `Authorization` = `Bearer ABC123` (the word `Bearer`, a space, then your pool key)
+      - Headers: `Authorization` = `Bearer ABC123` (the word `Bearer`, a space, then your album key)
       - Request Body: **Form**
         - `photo` → add it with **Add new field → File** (not Text!) → *Converted Image*
         - `lat` → **Text** → `Lat`
@@ -40,25 +40,25 @@ answer as headers instead: `X-Lat` = `Lat`, `X-Lng` = `Lng`, `X-Taken-At` = `Tak
 ## Use it
 Photos → select photos → Share → **Add to PhotoGuessr**.
 
-- **Two phones:** both can use the same pool key at the same time.
-- **Duplicates:** photos already in the pool are skipped.
+- **Two phones:** both can use the same album key at the same time.
+- **Duplicates:** photos already in the album are skipped.
 - **No location:** photos without a location are refused ("Photo has no location"). Location must be
   on for the Camera (Settings → Privacy → Location Services → Camera).
 - **First upload after a quiet period:** it can take ~1 minute, because Render's free plan sleeps
   when idle. Open the game site first to wake it.
-- **Auto-delete:** a pool with photos is deleted **3 days after the last play, upload or delete**.
-  A new or emptied pool is deleted **1 hour after it became empty**, so add the first photo soon
-  after creating it. Check the time on the Pool home screen (open the site, enter the key).
+- **Auto-delete:** an album with photos is deleted **3 days after the last play, upload or delete**.
+  A new or emptied album is deleted **1 hour after it became empty**, so add the first photo soon
+  after creating it. Check the time on the Album home screen (open the site, enter the key).
 - **Sharing:** the same key is what players use. Anyone with it can also add and delete photos.
 
 ## Troubleshooting
 | Message | Meaning |
 |---|---|
-| Nothing happens, pool stays empty | Shortcuts doesn't show server errors. Add **Show Result** after Get Contents of URL |
+| Nothing happens, album stays empty | Shortcuts doesn't show server errors. Add **Show Result** after Get Contents of URL |
 | `Missing photo: … sent as Text …` | The `photo` form field is a Text field. Delete it and add it again with **Add new field → File** |
 | `Missing photo: no 'photo' field …` | The form field isn't named exactly `photo`, or Convert Image runs after the upload |
 | `couldn't convert from Rich Text to URL` | The URL is missing `http://` or `https://` |
-| `Invalid key` | Wrong pool key, `Bearer ` missing in the header, or the pool was deleted/expired |
+| `Invalid key` | Wrong album key, `Bearer ` missing in the header, or the album was deleted/expired |
 | `Too many wrong attempts` | 10 wrong keys from your network within a minute; wait a minute |
 | `Photo has no location` | The photo has no GPS (screenshots, downloaded images, location off) |
 | `Unsupported image` | The file isn't a photo the server can read |

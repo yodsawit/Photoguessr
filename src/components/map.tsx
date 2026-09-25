@@ -2,7 +2,7 @@ import L from 'leaflet'
 import { useEffect } from 'react'
 import { TileLayer, useMap } from 'react-leaflet'
 
-/** Where the guess map opens. The pool is Thailand-focused, so start there (still pannable anywhere). */
+/** Where the guess map opens. The album is Thailand-focused, so start there (still pannable anywhere). */
 export const MAP_START = { center: [13.2, 101.0] as [number, number], zoom: 5 }
 
 export function BaseTiles() {

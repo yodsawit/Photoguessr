@@ -162,7 +162,7 @@ export function createApp(deps: AppDeps) {
   app.post('/api/pools', async (c) => {
     guard(c)
     const code = c.req.header('X-Admin-Code') ?? ''
-    if (!deps.adminCode) throw new HttpError(403, 'Pool creation is disabled')
+    if (!deps.adminCode) throw new HttpError(403, 'Album creation is disabled')
     if (!sameSecret(code, deps.adminCode)) {
       limiter.fail(clientIp(c))
       throw new HttpError(401, 'Invalid admin code')

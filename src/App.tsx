@@ -1,26 +1,27 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { ApiError, fetchPhotoUrl, fetchRounds, KEY_PATTERN, postGuess } from './game/api'
-import { multiplier, ROUND_SECONDS, TILE_VALUE } from './game/scoring'
+import { bonusPercent, ROUND_SECONDS, TILE_BONUS_PCT, TIME_PER_TILE_SECONDS } from './game/scoring'
+import { sound } from './game/sound'
 import type { GuessRequest, PublicPhoto } from './game/types'
 import { useRound } from './game/useRound'
 import { GuessMap } from './components/GuessMap'
 import { KeyInput } from './components/KeyInput'
 import { Button, Card, CenteredPage, Shell, Title } from './components/layout'
-import { MultiplierBadge } from './components/MultiplierBadge'
+import { BonusBadge } from './components/BonusBadge'
 import { ResultView } from './components/ResultView'
 import { TileGrid } from './components/TileGrid'
-import { Timer } from './components/Timer'
+import { MuteToggle, Timer } from './components/Timer'
 import CountUp from './components/ui/CountUp'
 import { AdminPage } from './pages/AdminPage'
 import { PoolHome } from './pages/PoolHome'
 
-/** Rounds per game. 1 for now while testing. */
-const ROUNDS = 1
+/** Rounds per game. Albums with fewer photos play each photo once (shorter game). */
+const ROUNDS = 10
 const POOL_KEY_STORAGE = 'photoguessr.poolKey'
 const LEGACY_KEY_STORAGE = 'photoguessr.playKey'
 
-/** Remembering the pool key is a per-device convenience; everything works without storage. */
+/** Remembering the album key is a per-device convenience; everything works without storage. */
 const rememberedKey = {
   get: () => {
     try {
@@ -47,11 +48,11 @@ const rememberedKey = {
 export default function App() {
   const path = window.location.pathname.replace(/\/+$/, '')
   if (path === '/admin') return <AdminPage />
-  if (path === '/manage') window.history.replaceState(null, '', '/') // old link: pool management now lives on the pool screen
+  if (path === '/manage') window.history.replaceState(null, '', '/') // old link: album management now lives on the album screen
   return <PoolPage />
 }
 
-/** One key per pool: enter it once, then pool home (status/delete) and the game share it. */
+/** One key per album: enter it once, then album home (status/delete) and the game share it. */
 function PoolPage() {
   const [poolKey, setPoolKey] = useState(rememberedKey.get)
   const [view, setView] = useState<'home' | 'game'>('home')
@@ -83,7 +84,7 @@ function JoinPage({ error, onJoin }: { error: string | null; onJoin: (key: strin
         <p className="text-4xl" aria-hidden>
           📸
         </p>
-        <Title>Open a photo pool</Title>
+        <Title>Open a photo album</Title>
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -91,10 +92,10 @@ function JoinPage({ error, onJoin }: { error: string | null; onJoin: (key: strin
           }}
           className="mt-5 space-y-4"
         >
-          <KeyInput label="Pool key" value={key} onChange={setKey} autoFocus />
+          <KeyInput label="Album key" value={key} onChange={setKey} autoFocus />
           {error && <p className="rounded-xl bg-peach/25 px-3 py-2 text-sm font-semibold text-coral">{error}</p>}
           <Button type="submit" tone="coral" disabled={!KEY_PATTERN.test(key)}>
-            Open pool
+            Open album
           </Button>
         </form>
       </Card>
@@ -111,6 +112,29 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
   const [total, setTotal] = useState(0)
   const [gameOver, setGameOver] = useState(false)
 
+  // Photos are fetched with the key into blob URLs, shared across rounds so the next one can be
+  // downloaded in the background. All are released when the game restarts or the screen closes.
+  const photoCache = useRef(new Map<string, Promise<string>>())
+  const loadPhoto = useCallback(
+    (id: string) => {
+      let url = photoCache.current.get(id)
+      if (!url) {
+        url = fetchPhotoUrl(poolKey, id)
+        photoCache.current.set(id, url)
+        url.catch(() => photoCache.current.delete(id))
+      }
+      return url
+    },
+    [poolKey],
+  )
+  useEffect(() => {
+    const cache = photoCache.current
+    return () => {
+      for (const url of cache.values()) url.then(URL.revokeObjectURL, () => undefined)
+      cache.clear()
+    }
+  }, [gameKey])
+
   // The server picks the rounds and sends only id + size; answers stay server-side until a guess.
   useEffect(() => {
     let cancelled = false
@@ -119,7 +143,7 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
       .then((photos) => !cancelled && setLoad({ state: 'ready', photos }))
       .catch((err: unknown) => {
         if (cancelled) return
-        if (err instanceof ApiError && (err.status === 401 || err.status === 404)) onLeave('That pool key is not valid, or the pool has expired.')
+        if (err instanceof ApiError && (err.status === 401 || err.status === 404)) onLeave('That album key is not valid, or the album has expired.')
         else if (err instanceof ApiError && err.status === 429) setLoad({ state: 'error', message: 'Too many wrong keys from this network. Wait a minute and try again.' })
         else setLoad({ state: 'error', message: err instanceof Error ? err.message : 'Something went wrong' })
       })
@@ -152,14 +176,14 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
           {load.state === 'ready' && (
             <>
               <h1 className="text-2xl font-extrabold">No photos yet</h1>
-              <p className="mt-2 text-muted">This pool is empty. Add photos from your iPhone with the pool key.</p>
+              <p className="mt-2 text-muted">This album is empty. Add photos from your iPhone with the album key.</p>
               <Button className="mt-6" onClick={playAgain}>
                 Check again
               </Button>
             </>
           )}
           <Button tone="quiet" className="mt-3" onClick={onBack}>
-            Back to pool
+            Back to album
           </Button>
         </Card>
       </CenteredPage>
@@ -182,6 +206,8 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
           key={`${gameKey}-${roundIndex}`}
           poolKey={poolKey}
           photo={photos[roundIndex]}
+          nextPhotoId={photos[roundIndex + 1]?.id}
+          loadPhoto={loadPhoto}
           roundNo={roundIndex + 1}
           rounds={photos.length}
           onDone={next}
@@ -195,35 +221,35 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
 type RoundProps = {
   poolKey: string
   photo: PublicPhoto
+  nextPhotoId?: string
+  loadPhoto: (id: string) => Promise<string>
   roundNo: number
   rounds: number
   onDone: (score: number) => void
   onLeave: () => void
 }
 
-function Round({ poolKey, photo, roundNo, rounds, onDone, onLeave }: RoundProps) {
+function Round({ poolKey, photo, nextPhotoId, loadPhoto, roundNo, rounds, onDone, onLeave }: RoundProps) {
   const grade = useCallback((req: GuessRequest) => postGuess(poolKey, req), [poolKey])
   const round = useRound(photo, grade)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imageError, setImageError] = useState(false)
 
-  // Download the photo with the pool key before the timer can start; free it on unmount.
+  // The photo must be downloaded before the timer can start; then start fetching the next one.
   useEffect(() => {
-    const ctrl = new AbortController()
-    let url: string | null = null
-    fetchPhotoUrl(poolKey, photo.id, ctrl.signal)
-      .then((u) => {
-        url = u
-        setImageUrl(u)
-      })
-      .catch(() => {
-        if (!ctrl.signal.aborted) setImageError(true)
-      })
+    let active = true
+    loadPhoto(photo.id).then(
+      (url) => {
+        if (!active) return
+        setImageUrl(url)
+        if (nextPhotoId) void loadPhoto(nextPhotoId).catch(() => undefined)
+      },
+      () => active && setImageError(true),
+    )
     return () => {
-      ctrl.abort()
-      if (url) URL.revokeObjectURL(url)
+      active = false
     }
-  }, [poolKey, photo.id])
+  }, [loadPhoto, photo.id, nextPhotoId])
 
   return (
     <>
@@ -236,15 +262,16 @@ function Round({ poolKey, photo, roundNo, rounds, onDone, onLeave }: RoundProps)
             Round {roundNo} / {rounds}
             {round.phase === 'ready' && (
               <button type="button" onClick={onLeave} className="ml-2 underline decoration-dotted underline-offset-2 hover:text-ink">
-                back to pool
+                back to album
               </button>
             )}
           </p>
         </div>
         {round.phase === 'playing' && (
           <div className="flex items-center gap-2">
-            <MultiplierBadge value={multiplier(round.opened)} />
-            <Timer remainingMs={round.remainingMs} />
+            <BonusBadge pct={bonusPercent(round.opened)} />
+            <Timer remainingMs={round.remainingMs} totalMs={round.totalMs} bonusCount={round.opened.size} />
+            <MuteToggle />
           </div>
         )}
       </header>
@@ -252,7 +279,15 @@ function Round({ poolKey, photo, roundNo, rounds, onDone, onLeave }: RoundProps)
       {/* Enter-only animations: never gate a phase change (and the running timer) on an exit animation. */}
       {round.phase === 'ready' && (
         <motion.main key="ready" {...fade} className="flex flex-1 items-center justify-center px-4 pb-10">
-          <ReadyCard loading={!imageUrl} failed={imageError} onStart={round.start} />
+          <ReadyCard
+            loading={!imageUrl}
+            failed={imageError}
+            rounds={rounds}
+            onStart={() => {
+              sound.unlock() // audio needs a user gesture on iOS
+              round.start()
+            }}
+          />
         </motion.main>
       )}
 
@@ -282,7 +317,7 @@ const fade = {
   transition: { duration: 0.25 },
 }
 
-function ReadyCard({ loading, failed, onStart }: { loading: boolean; failed: boolean; onStart: () => void }) {
+function ReadyCard({ loading, failed, rounds, onStart }: { loading: boolean; failed: boolean; rounds: number; onStart: () => void }) {
   return (
     <Card>
       <p className="text-4xl" aria-hidden>
@@ -292,11 +327,17 @@ function ReadyCard({ loading, failed, onStart }: { loading: boolean; failed: boo
       <ul className="mt-4 space-y-2 text-left text-sm text-ink">
         <li>🃏 The photo hides under 16 cards. Tap to open them one at a time — at least one.</li>
         <li>
-          ✨ Every hidden card keeps its bonus: corners <b>+{TILE_VALUE.corner}</b>, sides <b>+{TILE_VALUE.side}</b>, middle{' '}
-          <b>+{TILE_VALUE.middle}</b> on top of ×1.0.
+          ✨ Every hidden card keeps a bonus: corners <b>+{TILE_BONUS_PCT.corner}%</b>, sides <b>+{TILE_BONUS_PCT.side}%</b>, middle{' '}
+          <b>+{TILE_BONUS_PCT.middle}%</b>. Your score is distance points × bonus.
         </li>
         <li>📍 Drop a pin on the map and guess. Closer = more points.</li>
-        <li>⏱️ You have {ROUND_SECONDS} seconds. At zero your pin is sent automatically.</li>
+        <li>
+          ⏱️ You start with {ROUND_SECONDS} seconds, and each card you open adds <b>+{TIME_PER_TILE_SECONDS} s</b>. At zero your pin is
+          sent automatically.
+        </li>
+        <li>
+          🔁 {rounds} round{rounds === 1 ? '' : 's'} this game.
+        </li>
       </ul>
       <Button tone="coral" className="mt-6" onClick={onStart} disabled={loading || failed}>
         {failed ? "Couldn't load the photo" : loading ? 'Loading photo…' : 'Start round'}
@@ -324,7 +365,7 @@ function GameOver({ total, rounds, onPlayAgain, onBack }: { total: number; round
           Play again
         </Button>
         <Button tone="quiet" className="mt-3" onClick={onBack}>
-          Back to pool
+          Back to album
         </Button>
       </Card>
     </main>

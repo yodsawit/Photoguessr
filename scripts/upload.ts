@@ -1,8 +1,8 @@
 /**
- * Upload photos from this computer into a pool, exactly like the iPhone Shortcut does:
+ * Upload photos from this computer into an album, exactly like the iPhone Shortcut does:
  * read GPS + date locally, shrink to 1920 px JPEG q80 with NO metadata, then POST.
  *
- *   npm run upload -- --key ABC123   (your pool key) [--url https://photoguessr.onrender.com] photos/*.HEIC
+ *   npm run upload -- --key ABC123   (your album key) [--url https://photoguessr.onrender.com] photos/*.HEIC
  *
  * Default URL is the local dev server (http://localhost:5173). Originals never leave this machine.
  */

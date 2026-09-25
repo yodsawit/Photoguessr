@@ -86,7 +86,7 @@ describe('one key does everything', () => {
       body: JSON.stringify({ id: photoId, guess: { lat: 18.8018, lng: 98.9672 }, opened: [0], timedOut: false }),
     })
     const result = (await guess.json()) as { finalScore: number; answer: Record<string, unknown> }
-    expect(result.finalScore).toBe(490)
+    expect(result.finalScore).toBe(195) // exact guess, 1 corner open: 100 x 195%
     expect(result.answer).toEqual({ lat: 18.8018, lng: 98.9672, takenAt: '2024-09-28T11:10:56+07:00', district: 'Mueang Chiang Mai', province: 'Chiang Mai' })
   })
 

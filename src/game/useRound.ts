@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ROUND_SECONDS } from './scoring'
+import { ROUND_SECONDS, TIME_PER_TILE_SECONDS } from './scoring'
 import type { GuessRequest, GuessResponse, LatLng, PublicPhoto } from './types'
 
 export type Phase = 'ready' | 'playing' | 'submitting' | 'result'
@@ -8,9 +8,10 @@ export type Phase = 'ready' | 'playing' | 'submitting' | 'result'
 export type GradeGuess = (req: GuessRequest) => Promise<GuessResponse>
 
 const ROUND_MS = ROUND_SECONDS * 1000
+const TIME_PER_TILE_MS = TIME_PER_TILE_SECONDS * 1000
 
 /**
- * One round: ready -> playing (30 s countdown) -> submitting -> result.
+ * One round: ready -> playing (30 s countdown, +10 s per opened card) -> submitting -> result.
  * Time is derived from a performance.now() deadline so throttled/background tabs don't drift.
  * When the clock hits 0 the current state is submitted as-is; the server scores 0 if no tile
  * was opened or no pin was dropped.
@@ -82,7 +83,13 @@ export function useRound(photo: PublicPhoto, grade: GradeGuess) {
   const openTile = useCallback(
     (index: number) => {
       if (tick()) return
-      setOpened((prev) => (prev.has(index) ? prev : new Set(prev).add(index)))
+      const current = stateRef.current.opened
+      if (current.has(index)) return
+      const next = new Set(current).add(index)
+      stateRef.current.opened = next // guard fast double-taps before React re-renders
+      deadlineRef.current += TIME_PER_TILE_MS
+      setRemainingMs(Math.max(0, deadlineRef.current - performance.now()))
+      setOpened(next)
     },
     [tick],
   )
@@ -112,6 +119,8 @@ export function useRound(photo: PublicPhoto, grade: GradeGuess) {
     opened,
     pin,
     remainingMs,
+    /** Clock length for this round so far: 30 s + 10 s per opened card (for the timer ring). */
+    totalMs: ROUND_MS + opened.size * TIME_PER_TILE_MS,
     result,
     error,
     /** Re-sends the same guess after a network/server error. */

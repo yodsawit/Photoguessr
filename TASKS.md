@@ -1,14 +1,17 @@
 # Tasks
 
 ## Now
-- [ ] You: Render Blueprint deploy (same KEY_PEPPER as .env)
+- [ ] Push 6068b01 + v2.2 commit (waiting for your OK)
 
 ## Next
+- [ ] You: Render Blueprint deploy (same KEY_PEPPER as .env)
 - [ ] Speed: R2 round trips make each request ~1-3 s from Thailand (cache pool/key records per request)
 - [ ] Re-check animations + hover map in a visible Chrome window
-- [ ] More rounds (raise ROUNDS in src/App.tsx)
 
 ## Done
+- [x] v2.2 step 7: 51 tests; browser: 10 rounds, 3-photo album = 3 rounds, +10s pop, +195% badge, tick once/sec + mute remembered, score = round(base x bonus%) (2026-09-25)
+- [x] v2.2 steps 1-6: new scoring (D=500 capped, bonus % from 0), +10 s per card with pop, last-10-s bump + soft tick + mute, % displays, 10 rounds + next-photo preload, album wording (2026-09-25)
+- [x] Upload fixes: clear Text-vs-File error, raw-body upload option, Shortcut guide (6068b01, 2026-09-25)
 - [x] v2.1 step 8: real-R2 E2E (upload, play, delete -> 0 objects; empty 2 h -> 404), UI check, committed + pushed (2026-09-25)
 - [x] v2.1 step 7: sweeper redeployed with new rules, cron */15, no public URL (2026-09-25)
 - [x] v2.1 step 6: two-key wording removed everywhere (code, docs, skills, CLAUDE.md, render.yaml); grep clean (2026-09-25)

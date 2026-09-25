@@ -1,11 +1,11 @@
-import { GRID, TILE_COUNT, TILE_VALUE, tileKind } from '../game/scoring'
+import { GRID, TILE_BONUS_PCT, TILE_COUNT, tileKind, TIME_PER_TILE_SECONDS } from '../game/scoring'
 import type { PublicPhoto } from '../game/types'
 import { cn } from '../lib/utils'
 import ClickSpark from './ui/ClickSpark'
 
 type Props = {
   photo: PublicPhoto
-  /** Local object URL of the photo (fetched with the pool key). */
+  /** Local object URL of the photo (fetched with the album key). */
   imageUrl: string
   opened: ReadonlySet<number>
   disabled: boolean
@@ -50,7 +50,7 @@ export function TileGrid({ photo, imageUrl, opened, disabled, onOpen }: Props) {
               type="button"
               disabled={disabled || isOpen}
               onClick={() => onOpen(i)}
-              aria-label={isOpen ? `Tile ${i + 1}, open` : `Open tile ${i + 1} (${kind}, costs ${TILE_VALUE[kind]} bonus)`}
+              aria-label={isOpen ? `Tile ${i + 1}, open` : `Open tile ${i + 1} (${kind}: costs ${TILE_BONUS_PCT[kind]}% bonus, adds ${TIME_PER_TILE_SECONDS} seconds)`}
               className={cn(
                 'flip-card min-h-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-coral',
                 isOpen && 'is-open',
@@ -60,7 +60,7 @@ export function TileGrid({ photo, imageUrl, opened, disabled, onOpen }: Props) {
               <div className="flip-card-inner">
                 <div className="flip-card-front">
                   <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-extrabold sm:text-xs', KIND_CHIP[kind])}>
-                    +{TILE_VALUE[kind].toFixed(1)}
+                    +{TILE_BONUS_PCT[kind]}%
                   </span>
                 </div>
                 <div
