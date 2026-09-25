@@ -14,6 +14,10 @@ type Props = {
   imageUrl: string
   result: GuessResponse
   isLastRound: boolean
+  roundNo: number
+  rounds: number
+  /** Game total before this round; the result shows it counting up to include this round. */
+  totalBefore: number
   onNext: () => void
 }
 
@@ -29,7 +33,7 @@ function FitBoth({ answer, guess }: { answer: Answer; guess: GuessResponse['gues
   return null
 }
 
-export function ResultView({ photo, imageUrl, result, isLastRound, onNext }: Props) {
+export function ResultView({ photo, imageUrl, result, isLastRound, roundNo, rounds, totalBefore, onNext }: Props) {
   const { guess, distanceKm, baseScore, bonusPct, finalScore, pinpoint, timedOut, answer } = result
   const noScoreReason = !guess ? 'No pin dropped in time' : null
 
@@ -86,6 +90,15 @@ export function ResultView({ photo, imageUrl, result, isLastRound, onNext }: Pro
             <motion.div initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 1.0, type: 'spring', stiffness: 380, damping: 16 }}>
               <GradeLetter score={finalScore} />
             </motion.div>
+          </div>
+
+          <div className="mt-3 flex items-baseline justify-between gap-3 rounded-2xl bg-cream px-3 py-2">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted">
+              Total <span className="normal-case tracking-normal">· after round {roundNo} / {rounds}</span>
+            </p>
+            <p className="text-xl font-extrabold text-ink tabular-nums">
+              <CountUp from={totalBefore} to={totalBefore + finalScore} duration={1.2} delay={0.3} separator="," />
+            </p>
           </div>
 
           {pinpoint && (

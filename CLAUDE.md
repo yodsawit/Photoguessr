@@ -35,6 +35,7 @@ GeoGuessr-style browser game played on private, auto-expiring pools of the owner
   A game prefers photos from **different days** (`server/pick.ts`, day index
   `pools/<id>/days/<day|none>/<photoId>`, backfilled on first game); same-day photos only fill up.
 - Result: full photo, both pins + line, distance, district + province (English), photo date,
+  the **game total so far** (counts up from the previous total, "after round n / N"),
   "51.3 × 105% = 54" (or "100.0 × 105% + 🎯10 = 115" on a pinpoint) and the **letter grade in its
   colour only** (no medal between rounds; medals are for game over and the album high score).
   The answer pin has a white flag; the guess pin a dot.

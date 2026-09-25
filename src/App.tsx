@@ -215,6 +215,7 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
           loadPhoto={loadPhoto}
           roundNo={roundIndex + 1}
           rounds={photos.length}
+          totalBefore={total}
           onDone={next}
           onLeave={onBack}
         />
@@ -231,11 +232,12 @@ type RoundProps = {
   loadPhoto: (id: string) => Promise<string>
   roundNo: number
   rounds: number
+  totalBefore: number
   onDone: (score: number, game?: GameProgress) => void
   onLeave: () => void
 }
 
-function Round({ poolKey, gameId, photo, nextPhotoId, loadPhoto, roundNo, rounds, onDone, onLeave }: RoundProps) {
+function Round({ poolKey, gameId, photo, nextPhotoId, loadPhoto, roundNo, rounds, totalBefore, onDone, onLeave }: RoundProps) {
   const grade = useCallback((req: GuessRequest) => postGuess(poolKey, { ...req, gameId }), [poolKey, gameId])
   const round = useRound(photo, grade)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
@@ -325,7 +327,7 @@ function Round({ poolKey, gameId, photo, nextPhotoId, loadPhoto, roundNo, rounds
 
       {round.phase === 'result' && round.result && imageUrl && (
         <motion.main key="result" {...fade} className="flex-1">
-          <ResultView photo={photo} imageUrl={imageUrl} result={round.result} isLastRound={roundNo === rounds} onNext={() => onDone(round.result!.finalScore, round.result!.game)} />
+          <ResultView photo={photo} imageUrl={imageUrl} result={round.result} isLastRound={roundNo === rounds} roundNo={roundNo} rounds={rounds} totalBefore={totalBefore} onNext={() => onDone(round.result!.finalScore, round.result!.game)} />
         </motion.main>
       )}
     </>
