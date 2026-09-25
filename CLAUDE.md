@@ -22,7 +22,8 @@ GeoGuessr-style browser game played on private, auto-expiring pools of the owner
 - **Points %** starts at a **55% base** (kept whatever is opened); every card still hidden adds
   corner 2%, side 3%, middle 5% (all hidden = 107%, best real case 105%, all opened = 55%). UI says "Points", never "bonus",
   and never "+" before %.
-- **Distance points** = 100 * e^(-10 * min(d / 1000 km, 1)), d = haversine km.
+- **Distance points** = a·e^(−b·x) + (100 − a)(1 − x / 1500), x = min(d, 1500 km), a = 57.56363, b = 0.0267556
+  (Desmos fit, R² 0.9719): 100 at 0 km, ~86 at 10 km, ~44 at 100 km, ~14 at 1000 km, 0 from 1500 km. d = haversine km.
 - **Pinpoint**: a guess within 100 m adds +10 to the final score, **after** the % (perfect round
   = 100 × 105% + 10 = 115; with every card opened a perfect pinpoint is 100 × 55% + 10 = 65).
 - **Final** = round(distance points * points% / 100) [+10 pinpoint]. 0 only without a pin.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BASE_PCT, bonusPercent, gameGrade, geoScore, gradeFor, haversineKm, MAP_SIZE_KM, PINPOINT_METERS, PINPOINT_POINTS, ROUND_SECONDS, scoreRound, TILE_BONUS_PCT, tileKind, TILE_COUNT, TIME_PER_TILE_SECONDS } from './scoring'
+import { BASE_PCT, bonusPercent, gameGrade, geoScore, gradeFor, haversineKm, FIT_A, FIT_B, ZERO_SCORE_KM, PINPOINT_METERS, PINPOINT_POINTS, ROUND_SECONDS, scoreRound, TILE_BONUS_PCT, tileKind, TILE_COUNT, TIME_PER_TILE_SECONDS } from './scoring'
 
 const CHIANG_MAI = { lat: 18.8018, lng: 98.9672 }
 const BANGKOK = { lat: 13.7563, lng: 100.5018 }
@@ -35,18 +35,22 @@ describe('bonusPercent (55% base, hidden cards add 2 / 3 / 5 %)', () => {
   })
 })
 
-describe('geo scoring (D = 1000 km, capped with min(d/D, 1))', () => {
+describe('geo scoring (fitted curve, 0 from 1500 km)', () => {
   it('haversine Bangkok -> Chiang Mai is ~580 km', () => {
     expect(haversineKm(BANGKOK, CHIANG_MAI)).toBeGreaterThan(570)
     expect(haversineKm(BANGKOK, CHIANG_MAI)).toBeLessThan(595)
     expect(haversineKm(CHIANG_MAI, CHIANG_MAI)).toBe(0)
   })
-  it('follows 100 * e^(-10 * min(d / 1000, 1))', () => {
-    expect(MAP_SIZE_KM).toBe(1000)
-    expect(geoScore(0)).toBe(100)
-    expect(geoScore(50)).toBeCloseTo(60.653, 2)
-    expect(geoScore(1000)).toBeCloseTo(0.00454, 4)
-    expect(geoScore(5000)).toBe(geoScore(1000))
+  it('follows a * e^(-b * x) + (100 - a) * (1 - x / 1500), x = min(d, 1500)', () => {
+    expect(FIT_A).toBe(57.56363)
+    expect(FIT_B).toBe(0.0267556)
+    expect(ZERO_SCORE_KM).toBe(1500)
+    expect(geoScore(0)).toBeCloseTo(100, 9)
+    expect(geoScore(10)).toBeCloseTo(86.2, 1)
+    expect(geoScore(100)).toBeCloseTo(43.57, 1)
+    expect(geoScore(1000)).toBeCloseTo(14.15, 1)
+    expect(geoScore(1500)).toBeCloseTo(0, 9)
+    expect(geoScore(5000)).toBe(geoScore(1500))
   })
 })
 

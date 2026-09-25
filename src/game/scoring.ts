@@ -3,8 +3,11 @@ import type { LatLng } from './types'
 export const GRID = 4
 export const TILE_COUNT = GRID * GRID
 export const BASE_SCORE = 100
-/** GeoGuessr map-size constant D, in km. Distances beyond D score (almost) nothing. */
-export const MAP_SIZE_KM = 1000
+/** Distance-points curve fitted in Desmos (R² 0.9719): a·e^(−b·x) + (100 − a)(1 − x / ZERO_SCORE_KM). */
+export const FIT_A = 57.56363
+export const FIT_B = 0.0267556
+/** Guesses this far off (km) or further score 0 distance points. */
+export const ZERO_SCORE_KM = 1500
 /** Starting clock per round; every opened card adds TIME_PER_TILE_SECONDS. */
 export const ROUND_SECONDS = 40
 export const TIME_PER_TILE_SECONDS = 5
@@ -28,9 +31,13 @@ export function haversineKm(a: LatLng, b: LatLng): number {
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)))
 }
 
-/** BASE * e^(-10 * min(d / D, 1)). Unrounded. */
+/**
+ * a·e^(−b·x) + (BASE − a)(1 − x / 1500), x = min(d km, 1500): a steep drop close in plus a gentle
+ * linear tail, 100 at 0 km and 0 from 1500 km. Unrounded.
+ */
 export function geoScore(distanceKm: number): number {
-  return BASE_SCORE * Math.exp(-10 * Math.min(distanceKm / MAP_SIZE_KM, 1))
+  const x = Math.min(Math.max(distanceKm, 0), ZERO_SCORE_KM)
+  return FIT_A * Math.exp(-FIT_B * x) + (BASE_SCORE - FIT_A) * (1 - x / ZERO_SCORE_KM)
 }
 
 /** Tile index is row-major, 0..15. */
