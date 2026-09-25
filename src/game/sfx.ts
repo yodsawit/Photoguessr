@@ -11,7 +11,7 @@ export const SFX_NAMES = [
 export type SfxName = (typeof SFX_NAMES)[number]
 
 const VOLUME: Record<SfxName, number> = {
-  pin: 0.55, guess: 0.5, card: 0.6, count: 0.25, pinpoint: 0.6,
+  pin: 0.45, guess: 0.45, card: 0.6, count: 0.25, pinpoint: 0.6,
   'grade-low': 0.5, 'grade-mid': 0.55, 'grade-high': 0.6, 'grade-s': 0.65,
   bar: 0.3, overflow: 0.55, 'medal-low': 0.55, 'medal-mid': 0.6, 'medal-high': 0.65, 'medal-s': 0.7,
   alarm: 0.6,

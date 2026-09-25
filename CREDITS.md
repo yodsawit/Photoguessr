@@ -16,7 +16,8 @@ UI components adapted from free community sources (see CLAUDE.md for the approve
 
 | File (`public/sfx/`) | Source | Licence |
 |---|---|---|
-| `pin` (drop_002), `guess` (maximize_004), `count` (tick_002), `bar` (tick_001), `pinpoint` (glass_001), `overflow` (confirmation_004) | [Kenney — Interface Sounds](https://kenney.nl/assets/interface-sounds) | CC0 |
+| `guess` (drop_003, softened), `count` (tick_002), `bar` (tick_001), `pinpoint` (glass_001), `overflow` (confirmation_004) | [Kenney — Interface Sounds](https://kenney.nl/assets/interface-sounds) | CC0 |
+| `pin` (impactWood_light_001, softened) | [Kenney — Impact Sounds](https://kenney.nl/assets/impact-sounds) | CC0 |
 | `card` (card-slide-2) | [Kenney — Casino Audio](https://kenney.nl/assets/casino-audio) | CC0 |
 | `grade-low` (PIZZI05), `grade-mid` (PIZZI04), `grade-high` (PIZZI10), `grade-s` (PIZZI02), `medal-low` (SAX07), `medal-mid` (STEEL02), `medal-high` (STEEL12), `medal-s` (HIT15) | [Kenney — Music Jingles](https://kenney.nl/assets/music-jingles) | CC0 |
 | `music` — "Calm Piano 1 (Vaporware)" | [The Cynic Project on OpenGameArt](https://opengameart.org/content/calm-piano-1-vaporware) | CC0 |
