@@ -319,7 +319,7 @@ function Round({ poolKey, gameId, photo, nextPhotoId, loadPhoto, roundNo, rounds
             {round.phase === 'submitting' && <SubmittingToast error={round.error} onRetry={round.retry} />}
           </motion.main>
           {/* Outside the animated <main>: a transformed ancestor would re-anchor this fixed panel. */}
-          <GuessMap pin={round.pin} openedCount={round.opened.size} canGuess={round.canGuess} onPin={round.placePin} onGuess={round.submit} />
+          <GuessMap pin={round.pin} canGuess={round.canGuess} onPin={round.placePin} onGuess={round.submit} />
         </>
       )}
 
@@ -346,7 +346,7 @@ function ReadyCard({ loading, failed, rounds, onStart }: { loading: boolean; fai
       </p>
       <h2 className="mt-2 text-2xl font-extrabold text-ink">Where was this taken?</h2>
       <ul className="mt-4 space-y-2 text-left text-sm text-ink">
-        <li>🃏 The photo hides under 16 cards. Tap to open them one at a time — at least one.</li>
+        <li>🃏 The photo hides under 16 cards. Open as many as you need — or none, if you're feeling brave.</li>
         <li>
           ✨ Every hidden card keeps its points: corners <b>{TILE_BONUS_PCT.corner}%</b>, sides <b>{TILE_BONUS_PCT.side}%</b>, middle{' '}
           <b>{TILE_BONUS_PCT.middle}%</b>. Your score is distance points × those %.

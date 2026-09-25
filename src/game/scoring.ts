@@ -8,6 +8,9 @@ export const MAP_SIZE_KM = 500
 /** Starting clock per round; every opened card adds TIME_PER_TILE_SECONDS. */
 export const ROUND_SECONDS = 30
 export const TIME_PER_TILE_SECONDS = 10
+/** A guess this close earns extra raw points (added before the % multiplier). */
+export const PINPOINT_METERS = 50
+export const PINPOINT_POINTS = 10
 
 export type TileKind = 'corner' | 'side' | 'middle'
 /** Points % kept by each card while it stays hidden (starts at 0%; all hidden = 108%). */
@@ -53,19 +56,25 @@ export type RoundResult = {
   /** Points % kept (0..108). */
   bonusPct: number
   finalScore: number
+  /** Guess was under PINPOINT_METERS: baseScore includes +PINPOINT_POINTS. */
+  pinpoint: boolean
   openedCount: number
   timedOut: boolean
 }
 
-/** final = round(base × bonus%). Counts only with a pin and at least one opened card; otherwise 0. */
+/**
+ * final = round((distance points [+10 pinpoint]) × points%). Only needs a pin; guessing without
+ * opening any card is allowed and keeps the full 108%.
+ */
 export function scoreRound(answer: LatLng, guess: LatLng | null, opened: ReadonlySet<number>, timedOut: boolean): RoundResult {
   const bonusPct = bonusPercent(opened)
-  if (!guess || opened.size === 0) {
-    return { guess, distanceKm: guess ? haversineKm(answer, guess) : null, baseScore: 0, bonusPct, finalScore: 0, openedCount: opened.size, timedOut }
+  if (!guess) {
+    return { guess, distanceKm: null, baseScore: 0, bonusPct, finalScore: 0, pinpoint: false, openedCount: opened.size, timedOut }
   }
   const distanceKm = haversineKm(answer, guess)
-  const baseScore = geoScore(distanceKm)
-  return { guess, distanceKm, baseScore, bonusPct, finalScore: Math.round((baseScore * bonusPct) / 100), openedCount: opened.size, timedOut }
+  const pinpoint = distanceKm * 1000 < PINPOINT_METERS
+  const baseScore = geoScore(distanceKm) + (pinpoint ? PINPOINT_POINTS : 0)
+  return { guess, distanceKm, baseScore, bonusPct, finalScore: Math.round((baseScore * bonusPct) / 100), pinpoint, openedCount: opened.size, timedOut }
 }
 
 export type Grade = 'F' | 'D' | 'C' | 'B' | 'A' | 'A+' | 'S'

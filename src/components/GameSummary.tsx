@@ -47,11 +47,12 @@ export function GameSummary({ total, rounds, progress, onPlayAgain, onBack }: Pr
       <Card className="max-w-lg overflow-visible">
         <p className="text-2xl font-extrabold text-ink">🎉 Game over</p>
 
-        <div className="mt-2 flex min-h-[230px] items-end justify-center">
+        {/* fixed-height stage: the medal (with crown/ribbons) grows inside it, the score never moves */}
+        <div className="mt-3 flex h-[250px] items-center justify-center">
           <GradeMedal info={info} size="lg" />
         </div>
 
-        <p className="mt-2 text-6xl font-black tabular-nums" style={{ color: gradeTextColor(info.tone) }}>
+        <p className="mt-1 text-6xl font-black tabular-nums" style={{ color: gradeTextColor(info.tone) }}>
           {shown.toLocaleString('en-US')}
         </p>
         <p className="text-xs font-bold uppercase tracking-wide text-muted">total points</p>
@@ -85,12 +86,16 @@ export function GameSummary({ total, rounds, progress, onPlayAgain, onBack }: Pr
           <div className="relative mt-1 h-4 text-[10px] font-bold text-muted">
             <span className="absolute left-0">0</span>
             {GRADES.filter((g) => g.min > 0 && g.min < 100).map((g) => (
-              <span key={g.grade} className="absolute -translate-x-1/2" style={{ left: `${g.min}%`, color: gradeTextColor(g.tone) }}>
+              <span
+                key={g.grade}
+                className={g.grade === 'A+' ? 'absolute -translate-x-[75%]' : 'absolute -translate-x-1/2'}
+                style={{ left: `${g.min}%`, color: gradeTextColor(g.tone) }}
+              >
                 {g.grade}
               </span>
             ))}
             <span className="absolute right-0" style={{ color: gradeTextColor('rainbow') }}>
-              S · {max.toLocaleString('en-US')}
+              S
             </span>
           </div>
 

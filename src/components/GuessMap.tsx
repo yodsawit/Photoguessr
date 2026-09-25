@@ -7,7 +7,6 @@ import { MovingBorderButton } from './ui/MovingBorderButton'
 
 type Props = {
   pin: LatLng | null
-  openedCount: number
   canGuess: boolean
   onPin: (ll: LatLng) => void
   onGuess: () => void
@@ -27,10 +26,10 @@ function ClickToPin({ onPin }: { onPin: (ll: LatLng) => void }) {
  * Desktop: GeoGuessr-style mini map in the bottom-right that grows while hovered/focused.
  * Mobile: bottom bar with a map toggle; the map opens as a sheet (no hover dependency).
  */
-export function GuessMap({ pin, openedCount, canGuess, onPin, onGuess }: Props) {
+export function GuessMap({ pin, canGuess, onPin, onGuess }: Props) {
   const [sheetOpen, setSheetOpen] = useState(false)
 
-  const hint = openedCount === 0 ? 'Open a card first' : !pin ? 'Drop a pin on the map' : 'Guess!'
+  const hint = !pin ? 'Drop a pin on the map' : 'Guess!'
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-[1000] md:inset-x-auto md:right-5 md:bottom-5">

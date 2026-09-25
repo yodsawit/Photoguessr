@@ -88,7 +88,7 @@ describe('one key does everything', () => {
       body: JSON.stringify({ id: photoId, guess: { lat: 18.8018, lng: 98.9672 }, opened: [0], timedOut: false }),
     })
     const result = (await guess.json()) as { finalScore: number; answer: Record<string, unknown> }
-    expect(result.finalScore).toBe(106) // exact guess, 1 corner open: 100 x 106%
+    expect(result.finalScore).toBe(117) // exact guess, 1 corner open: (100 + 10 pinpoint) x 106%
     expect(result.answer).toEqual({ lat: 18.8018, lng: 98.9672, takenAt: '2024-09-28T11:10:56+07:00', district: 'Mueang Chiang Mai', province: 'Chiang Mai' })
   })
 
@@ -223,15 +223,15 @@ describe('games and album high score', () => {
       return last!
     }
 
-    const good = await guessAll(0, 0) // exact, 1 corner: 106 each
-    expect(good.game).toMatchObject({ done: true, total: 212, rounds: 2, newHighScore: true, highScore: { total: 212 } })
-    expect(await status(key)).toMatchObject({ highScore: { total: 212, rounds: 2 } })
+    const good = await guessAll(0, 0) // exact, 1 corner: (100 + 10 pinpoint) x 106% = 117 each
+    expect(good.game).toMatchObject({ done: true, total: 234, rounds: 2, newHighScore: true, highScore: { total: 234 } })
+    expect(await status(key)).toMatchObject({ highScore: { total: 234, rounds: 2 } })
 
     const worse = await guessAll(5, 50) // middle opened, 50 km off
     expect(worse.game?.done).toBe(true)
     expect(worse.game?.newHighScore).toBe(false)
-    expect(worse.game?.total).toBeLessThan(212)
-    expect(await status(key)).toMatchObject({ highScore: { total: 212 } })
+    expect(worse.game?.total).toBeLessThan(234)
+    expect(await status(key)).toMatchObject({ highScore: { total: 234 } })
   })
 
   it('counts each photo once per game and ignores foreign or unknown games', async () => {
@@ -266,6 +266,47 @@ describe('games and album high score', () => {
     expect(objects.keys().some((k) => k.endsWith('highscore.json'))).toBe(true)
     await call('/api/pool', { method: 'DELETE', key })
     expect(objects.keys()).toEqual([])
+  })
+})
+
+describe('photos from different days', () => {
+  type Rounds = { gameId: string; photos: { id: string }[] }
+  const day = (d: number) => `2024-03-${String(d).padStart(2, '0')}T10:00:00+07:00`
+
+  it('a game spreads over different days before repeating one', async () => {
+    const { call, createPool, upload, objects } = setup()
+    const key = await createPool()
+    // 6 photos on day 1, one each on days 2..5
+    // clearly different colours: near-identical solid images would be (correctly) deduplicated
+    for (let i = 0; i < 6; i++) await upload(key, { lat: String(18 + i * 0.01), lng: '98.9', takenAt: day(1) }, i * 45)
+    for (let d = 2; d <= 5; d++) await upload(key, { lat: String(19 + d * 0.01), lng: '98.9', takenAt: day(d) }, 20 + (d - 2) * 45)
+    expect(objects.keys().filter((k) => k.includes('/days/'))).toHaveLength(10)
+    for (let run = 0; run < 8; run++) {
+      const r = (await (await call('/api/rounds?count=5', { key })).json()) as Rounds
+      const days = await Promise.all(
+        r.photos.map(async (p) => {
+          const g = (await (await call('/api/guess', { method: 'POST', key, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, guess: null, opened: [], timedOut: true }) })).json()) as { answer: { takenAt: string } }
+          return g.answer.takenAt.slice(0, 10)
+        }),
+      )
+      expect(new Set(days).size).toBe(5)
+    }
+  })
+
+  it('keeps the day index in step with uploads and deletes, and backfills old photos', async () => {
+    const { call, createPool, upload, objects } = setup()
+    const key = await createPool()
+    const { photoId } = (await (await upload(key, { lat: '18.8', lng: '98.9', takenAt: day(7) })).json()) as { photoId: string }
+    expect(objects.keys().some((k) => k.endsWith(`days/2024-03-07/${photoId}`))).toBe(true)
+
+    // simulate a photo stored before the index existed
+    const marker = objects.keys().find((k) => k.endsWith(`/${photoId}`) && k.includes('/days/'))!
+    await objects.delete([marker])
+    await call('/api/rounds', { key })
+    expect(objects.keys().some((k) => k.endsWith(`days/2024-03-07/${photoId}`))).toBe(true)
+
+    await call(`/api/photos/${photoId}`, { method: 'DELETE', key })
+    expect(objects.keys().some((k) => k.includes('/days/'))).toBe(false)
   })
 })
 

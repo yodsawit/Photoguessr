@@ -6,7 +6,7 @@ import type { Answer, GuessResponse, PublicPhoto } from '../game/types'
 import { AutoResize, BaseTiles, answerIcon, guessIcon } from './map'
 import CountUp from './ui/CountUp'
 import { motion } from 'motion/react'
-import { gradeFor } from '../game/scoring'
+import { gradeFor, PINPOINT_METERS, PINPOINT_POINTS } from '../game/scoring'
 import { GradeMedal } from './GradeMedal'
 
 type Props = {
@@ -30,12 +30,12 @@ function FitBoth({ answer, guess }: { answer: Answer; guess: GuessResponse['gues
 }
 
 export function ResultView({ photo, imageUrl, result, isLastRound, onNext }: Props) {
-  const { guess, distanceKm, baseScore, bonusPct, finalScore, openedCount, timedOut, answer } = result
-  const noScoreReason = !guess ? 'No pin dropped in time' : openedCount === 0 ? 'Time ran out before opening a card' : null
+  const { guess, distanceKm, baseScore, bonusPct, finalScore, pinpoint, timedOut, answer } = result
+  const noScoreReason = !guess ? 'No pin dropped in time' : null
 
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-4 px-4 pb-8 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] md:gap-6">
-      <figure className="overflow-hidden rounded-3xl bg-white p-2 shadow-[0_10px_30px_-12px_rgba(120,90,60,0.35)] ring-1 ring-sand">
+      <figure className="self-start overflow-hidden rounded-3xl bg-white p-2 shadow-[0_10px_30px_-12px_rgba(120,90,60,0.35)] ring-1 ring-sand">
         <img
           src={imageUrl}
           alt={`Photo taken in ${answer.district}, ${answer.province}`}
@@ -72,7 +72,14 @@ export function ResultView({ photo, imageUrl, result, isLastRound, onNext }: Pro
                 <CountUp to={finalScore} duration={1.2} separator="," />
               </p>
               <p className="mt-2 inline-block rounded-2xl bg-butter/40 px-3 py-1.5 text-sm font-semibold text-ink tabular-nums">
-                {baseScore.toFixed(1)} <span className="text-muted">×</span> {bonusPct}% <span className="text-muted">=</span> {finalScore}
+                {pinpoint ? (
+                  <>
+                    ({(baseScore - PINPOINT_POINTS).toFixed(1)} + 🎯{PINPOINT_POINTS})
+                  </>
+                ) : (
+                  baseScore.toFixed(1)
+                )}{' '}
+                <span className="text-muted">×</span> {bonusPct}% <span className="text-muted">=</span> {finalScore}
               </p>
             </div>
             {/* grade pops in once the count-up has settled */}
@@ -81,6 +88,16 @@ export function ResultView({ photo, imageUrl, result, isLastRound, onNext }: Pro
             </motion.div>
           </div>
 
+          {pinpoint && (
+            <motion.p
+              className="mt-3 w-fit rounded-xl bg-sage/25 px-3 py-2 text-sm font-extrabold text-sage-deep"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.4, type: 'spring', stiffness: 420, damping: 14 }}
+            >
+              🎯 Pinpoint! Under {PINPOINT_METERS} m: +{PINPOINT_POINTS}
+            </motion.p>
+          )}
           {noScoreReason && <p className="mt-3 rounded-xl bg-peach/25 px-3 py-2 text-sm font-semibold text-coral">⏰ {noScoreReason}</p>}
           {!noScoreReason && timedOut && <p className="mt-3 text-sm font-semibold text-coral">⏰ Time's up — your pin was submitted automatically.</p>}
 

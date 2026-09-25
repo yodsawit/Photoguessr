@@ -13,8 +13,8 @@ const TIME_PER_TILE_MS = TIME_PER_TILE_SECONDS * 1000
 /**
  * One round: ready -> playing (30 s countdown, +10 s per opened card) -> submitting -> result.
  * Time is derived from a performance.now() deadline so throttled/background tabs don't drift.
- * When the clock hits 0 the current state is submitted as-is; the server scores 0 if no tile
- * was opened or no pin was dropped.
+ * When the clock hits 0 the current state is submitted as-is; the server scores 0 if no pin
+ * was dropped.
  */
 export function useRound(photo: PublicPhoto, grade: GradeGuess) {
   const [phase, setPhase] = useState<Phase>('ready')
@@ -47,7 +47,7 @@ export function useRound(photo: PublicPhoto, grade: GradeGuess) {
     (timedOut: boolean) => {
       const { phase: p, opened: o, pin: g } = stateRef.current
       if (p !== 'playing') return
-      if (!timedOut && (o.size === 0 || !g)) return
+      if (!timedOut && !g) return
       stateRef.current.phase = 'submitting' // block re-entry before React re-renders
       setPhase('submitting')
       requestRef.current = { id: photo.id, guess: g, opened: [...o].sort((a, b) => a - b), timedOut }
@@ -127,7 +127,7 @@ export function useRound(photo: PublicPhoto, grade: GradeGuess) {
     retry: () => {
       if (requestRef.current) void send(requestRef.current)
     },
-    canGuess: phase === 'playing' && opened.size > 0 && pin !== null,
+    canGuess: phase === 'playing' && pin !== null,
     start,
     openTile,
     placePin,

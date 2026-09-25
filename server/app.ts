@@ -12,6 +12,7 @@ import type { GameProgress, LatLng, PublicPhoto } from '../src/game/types'
 import { HttpError } from './errors'
 import { expiresAt } from './expiry'
 import { GameRegistry } from './games'
+import { dayOf, pickRounds } from './pick'
 import type { Geocoder } from './geocode'
 import { processUpload } from './ingest'
 import { isPhotoId, type PoolStore } from './poolStore'
@@ -245,7 +246,21 @@ export function createApp(deps: AppDeps) {
   app.get('/api/rounds', async (c) => {
     const { pool } = await auth(c)
     const count = Math.min(MAX_ROUNDS, Math.max(1, Number(c.req.query('count')) || 1))
-    const ids = shuffle(await store.listPhotoIds(pool.poolId)).slice(0, count)
+    const [allIds, days] = await Promise.all([store.listPhotoIds(pool.poolId), store.listPhotoDays(pool.poolId)])
+    // One-time backfill for photos stored before the day index existed.
+    const missing = allIds.filter((id) => !days.has(id))
+    for (let i = 0; i < missing.length; i += 16) {
+      await Promise.all(
+        missing.slice(i, i + 16).map(async (id) => {
+          const a = await store.getAnswer(pool.poolId, id)
+          if (!a) return
+          await store.putPhotoDay(pool.poolId, id, a.takenAt)
+          days.set(id, dayOf(a.takenAt) ?? 'none')
+        }),
+      )
+    }
+    // Different days first; undated photos ("none") count as a day of their own each.
+    const ids = pickRounds(allIds, (id) => (days.get(id) === 'none' ? null : (days.get(id) ?? null)), count)
     const answers = await Promise.all(ids.map((id) => store.getAnswer(pool.poolId, id)))
     const photos: PublicPhoto[] = ids.flatMap((id, i) => {
       const a = answers[i]

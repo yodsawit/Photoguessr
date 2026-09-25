@@ -17,19 +17,24 @@ GeoGuessr-style browser game played on private, auto-expiring pools of the owner
   (use the `add-ui-component` skill).
 
 ## Game rules (source of truth: `src/game/scoring.ts`)
-- Photo hidden under a 4x4 grid of cards; player opens 1 at a time, must open >= 1 before guessing.
+- Photo hidden under a 4x4 grid of cards; player opens them one at a time. Opening none is allowed
+  (guess blind, keep the full 108%).
 - **Points %** starts at 0%; every card still hidden adds corner 2%, side 5%, middle 15%
   (all hidden = 108%, best real case 106%, all opened = 0%). UI says "Points", never "bonus",
   and never "+" before %.
 - **Distance points** = 100 * e^(-10 * min(d / 500 km, 1)), d = haversine km.
-- **Final** = round(distance points * bonus% / 100). 0 without a pin or without an opened card.
+- **Pinpoint**: a guess under 50 m adds +10 raw points before the % (perfect round = 117).
+- **Final** = round((distance points [+10]) * points% / 100). 0 only without a pin.
 - **Clock**: 30 s per round, **+10 s per opened card** ("+10s" pop). Last 10 s: gentle number bump
   each second + soft Web Audio tick (`src/game/sound.ts`, mute toggle remembered per device).
-  At 0 s: auto-submit (0 if no card opened or no pin).
+  At 0 s: auto-submit (0 if no pin).
 - **10 rounds per game** (`ROUNDS` in `src/App.tsx`); albums with fewer photos play each once.
   Only round 1 shows the rules card; later rounds auto-start when their photo is ready.
+  A game prefers photos from **different days** (`server/pick.ts`, day index
+  `pools/<id>/days/<day|none>/<photoId>`, backfilled on first game); same-day photos only fill up.
 - Result: full photo, both pins + line, distance, district + province (English), photo date,
-  "51.3 × 106% = 54" and a small grade medal.
+  "51.3 × 106% = 54" (or "(100.0 + 🎯10) × 106% = 117" on a pinpoint) and a small grade medal.
+  The answer pin has a white flag; the guess pin a dot.
 - **Grades** (`gradeFor`, per round; a game uses the average): F <50 rust, D 50+ purple,
   C 60+ yellow, B 70+ blue, A 80+ green, A+ 90+ gold, S 100+ rainbow. Medal (`GradeMedal`) gets
   grander per tier: cracked rusty stone F … crowned rainbow S with rays/sparkles/confetti.

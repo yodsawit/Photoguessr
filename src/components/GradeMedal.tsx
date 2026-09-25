@@ -48,7 +48,12 @@ export function GradeMedal({ info, size = 'lg', className }: Props) {
         : { initial: { scale: 0.7, rotateY: 90 }, animate: { scale: 1, rotateY: 0 }, transition: { type: 'spring' as const, stiffness: 420, damping: 16 } }
 
   return (
-    <div className={cn('relative inline-flex flex-col items-center', className)} style={{ width: disc * (big ? 2 : 1.5), paddingTop: big && tier === 6 ? disc * 0.34 : 0 }} aria-label={`Grade ${grade}`} role="img">
+    <div className={cn('relative inline-flex flex-col items-center', className)} style={{
+        width: disc * (big ? 2 : 1.5),
+        paddingTop: big && tier === 6 ? disc * 0.34 : 0,
+        // reserve room for the ribbon tails so they never overlap what's below
+        paddingBottom: ribbons > 0 ? disc * 0.42 : 0,
+      }} aria-label={`Grade ${grade}`} role="img">
       {/* light rays behind (A+ soft, S bright) */}
       {big && tier >= 5 && (
         <div

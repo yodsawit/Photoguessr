@@ -1,14 +1,13 @@
 # Tasks
 
 ## Now
-- [ ] v2.3 step 7: verify on port 8799 (never 8787), commit; push after OK
-
-## Next
-- [ ] Push 6068b01 + 093da0a (+ v2.3) (waiting for your OK)
+- [ ] Push 6068b01 + 093da0a + 8480356 (+ v2.4) (waiting for your OK)
 - [ ] You: Render Blueprint deploy (same KEY_PEPPER as .env)
-- [ ] Speed: R2 round trips make each request ~1-3 s from Thailand (cache pool/key records per request)
 
 ## Done
+- [x] v2.4 steps 2-5: distinct days per game (+ backfill), medal above score, no 1,000 label, flag pin, photo card no longer stretches; 66 tests + browser check (2026-09-25)
+- [x] v2.4 step 1: pinpoint +10 under 50 m; guessing without opening a card allowed (2026-09-25)
+- [x] v2.3: grades, medal tiers, score bar, album high score (8480356, 2026-09-25)
 - [x] v2.3 steps 3-6: gameId flow + auto-start rounds 2+; Points wording + small medal; GameSummary (golden striped bar, tiered medal, overflow); album high score tile (2026-09-25)
 - [x] v2.3 steps 1-2: tile % 2/5/15, grades F(rust)..S(rainbow) with C yellow/B blue; server games + album high score, tests (2026-09-25)
 - [x] v2.2 step 7: 51 tests; browser: 10 rounds, 3-photo album = 3 rounds, +10s pop, +195% badge, tick once/sec + mute remembered, score = round(base x bonus%) (2026-09-25)

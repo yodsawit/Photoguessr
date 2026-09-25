@@ -8,8 +8,10 @@
  *   pools/<poolId>/photos/<photoId>.json   StoredAnswer (the hidden answer)
  *   pools/<poolId>/hashes/<sha256>         photoId                               dedup index
  *   pools/<poolId>/highscore.json          HighScore                             best finished game
+ *   pools/<poolId>/days/<day|none>/<photoId>  (empty)                            photo-day index
  */
 import { isExpired } from './expiry'
+import { dayOf } from './pick'
 import type { ObjectStore } from './objects'
 import type { Answer, HighScore } from '../src/game/types'
 
@@ -46,6 +48,11 @@ const poolDir = (poolId: string) => {
 const photoKey = (poolId: string, photoId: string, ext: 'webp' | 'json') => {
   if (!isPhotoId(photoId)) throw new Error('invalid photo id')
   return `${poolDir(poolId)}photos/${photoId}.${ext}`
+}
+
+const dayKey = (poolId: string, photoId: string, takenAt: string | null) => {
+  if (!isPhotoId(photoId)) throw new Error('invalid photo id')
+  return `${poolDir(poolId)}days/${dayOf(takenAt) ?? 'none'}/${photoId}`
 }
 
 export function createPoolStore(objects: ObjectStore) {
@@ -89,7 +96,23 @@ export function createPoolStore(objects: ObjectStore) {
     async putPhoto(poolId: string, photoId: string, image: Uint8Array, answer: StoredAnswer) {
       await objects.put(photoKey(poolId, photoId, 'webp'), image, 'image/webp')
       await objects.put(`${poolDir(poolId)}hashes/${answer.sha256}`, enc.encode(photoId), 'text/plain')
+      await store.putPhotoDay(poolId, photoId, answer.takenAt)
       await putJson(photoKey(poolId, photoId, 'json'), answer)
+    },
+
+    /** Day index marker, so a game can spread its photos across days with one listing. */
+    putPhotoDay: (poolId: string, photoId: string, takenAt: string | null) =>
+      objects.put(dayKey(poolId, photoId, takenAt), new Uint8Array(), 'application/octet-stream'),
+
+    /** photoId -> day ("none" = undated) for every indexed photo. */
+    async listPhotoDays(poolId: string): Promise<Map<string, string>> {
+      const prefix = `${poolDir(poolId)}days/`
+      const days = new Map<string, string>()
+      for (const k of await objects.list(prefix)) {
+        const [day, photoId] = k.slice(prefix.length).split('/')
+        if (day && photoId && isPhotoId(photoId)) days.set(photoId, day)
+      }
+      return days
     },
 
     getImage: (poolId: string, photoId: string) => objects.get(photoKey(poolId, photoId, 'webp')),
@@ -101,7 +124,7 @@ export function createPoolStore(objects: ObjectStore) {
       await objects.delete([
         photoKey(poolId, photoId, 'json'),
         photoKey(poolId, photoId, 'webp'),
-        ...(answer ? [`${poolDir(poolId)}hashes/${answer.sha256}`] : []),
+        ...(answer ? [`${poolDir(poolId)}hashes/${answer.sha256}`, dayKey(poolId, photoId, answer.takenAt)] : []),
       ])
       return answer !== null
     },
