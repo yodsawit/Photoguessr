@@ -87,8 +87,8 @@ export function PoolHome({ poolKey, onPlay, onLeave }: Props) {
             <Button tone="coral" onClick={onPlay} disabled={status.empty}>
               {status.empty ? 'Add a photo to play' : 'Play'}
             </Button>
-            <div className="grid grid-cols-2 gap-3">
-              <AddPhotos poolKey={poolKey} onFinished={refresh} onAlbumGone={(reason) => onLeave(reason)} />
+            <div className={status.playOnly ? '' : 'grid grid-cols-2 gap-3'}>
+              {!status.playOnly && <AddPhotos poolKey={poolKey} onFinished={refresh} onAlbumGone={(reason) => onLeave(reason)} />}
               <Button tone="quiet" onClick={refresh}>
                 Refresh
               </Button>
@@ -98,10 +98,16 @@ export function PoolHome({ poolKey, onPlay, onLeave }: Props) {
               <summary className="cursor-pointer py-2 font-bold text-ink">Album key &amp; settings</summary>
               <div className="mt-2 space-y-3 pb-2">
                 <KeyCard value={poolKey} />
-                <p className="text-xs text-muted">Anyone with this key can play, add and delete photos, and delete the album.</p>
-                <Button tone="coral" onClick={remove} disabled={busy}>
-                  {confirming ? 'Tap again to delete everything' : 'Delete album now'}
-                </Button>
+                {status.playOnly ? (
+                  <p className="text-xs text-muted">This key can play this album.</p>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted">Anyone with this key can play, add and delete photos, and delete the album.</p>
+                    <Button tone="coral" onClick={remove} disabled={busy}>
+                      {confirming ? 'Tap again to delete everything' : 'Delete album now'}
+                    </Button>
+                  </>
+                )}
                 <Button tone="quiet" onClick={() => onLeave()}>
                   Use another key
                 </Button>

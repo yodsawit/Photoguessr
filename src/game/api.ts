@@ -42,8 +42,21 @@ export async function fetchPhotoUrl(key: string, photoId: string, signal?: Abort
   return URL.createObjectURL(await res.blob())
 }
 
+/** Birthday surprise gift photo (only the surprise key gets it), as a local object URL. */
+export async function fetchSurpriseGiftUrl(key: string): Promise<string> {
+  const res = await fetch('/api/surprise/gift', { headers: { Authorization: `Bearer ${key}` } })
+  if (!res.ok) throw new ApiError(res.status, 'Could not load the photo')
+  return URL.createObjectURL(await res.blob())
+}
+
+/** Birthday page reached: the server stops handing out the gift round. */
+export const markSurpriseSeen = (key: string) => call<{ seen: true }>('/api/surprise/seen', { key, method: 'POST' })
+
 // ---- pool (same key) ----
-export type PoolStatus = { photoCount: number; empty: boolean; lastActivityAt: string; expiresAt: string; highScore: HighScore | null }
+export type PoolStatus = { photoCount: number; empty: boolean; lastActivityAt: string; expiresAt: string; highScore: HighScore | null
+  /** The key can only play (birthday surprise key): no uploads or deletes. */
+  playOnly?: boolean
+}
 
 export const createPool = (adminCode: string) =>
   call<{ key: string }>('/api/pools', { method: 'POST', headers: { 'X-Admin-Code': adminCode } })

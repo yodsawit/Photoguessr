@@ -9,6 +9,8 @@
  *   pools/<poolId>/hashes/<sha256>         photoId                               dedup index
  *   pools/<poolId>/highscore.json          HighScore                             best finished game
  *   pools/<poolId>/days/<day|none>/<photoId>  (empty)                            photo-day index
+ *   pools/<poolId>/surprise/state.json     SurpriseState                         birthday surprise key
+ *   pools/<poolId>/surprise/gift.webp      metadata-free gift photo
  */
 import { isExpired } from './expiry'
 import { dayOf } from './pick'
@@ -25,6 +27,12 @@ export type PoolRecord = {
 }
 
 export type KeyRecord = { poolId: string }
+
+/**
+ * Birthday surprise: games played with the surprise key (counted at their first guess), whether the
+ * birthday page has been reached, and the gift photo's size once uploaded.
+ */
+export type SurpriseState = { games: number; seen: boolean; gift: { width: number; height: number } | null }
 
 export type StoredAnswer = Answer & {
   width: number
@@ -83,6 +91,12 @@ export function createPoolStore(objects: ObjectStore) {
     /** Separate object from pool.json so frequent activity writes can't overwrite it. */
     getHighScore: (poolId: string) => getJson<HighScore>(`${poolDir(poolId)}highscore.json`),
     putHighScore: (poolId: string, hs: HighScore) => putJson(`${poolDir(poolId)}highscore.json`, hs),
+
+    getSurprise: async (poolId: string): Promise<SurpriseState> =>
+      (await getJson<SurpriseState>(`${poolDir(poolId)}surprise/state.json`)) ?? { games: 0, seen: false, gift: null },
+    putSurprise: (poolId: string, s: SurpriseState) => putJson(`${poolDir(poolId)}surprise/state.json`, s),
+    getGift: (poolId: string) => objects.get(`${poolDir(poolId)}surprise/gift.webp`),
+    putGift: (poolId: string, image: Uint8Array) => objects.put(`${poolDir(poolId)}surprise/gift.webp`, image, 'image/webp'),
 
     /** Asks the bucket directly (one item), so concurrent uploads can't make it stale. */
     hasPhotos: (poolId: string) => objects.any(`${poolDir(poolId)}photos/`),

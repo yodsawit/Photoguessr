@@ -10,11 +10,12 @@ const ADMIN = 'admin-code-123'
 const T0 = Date.parse('2026-09-24T00:00:00Z')
 const MIN = 60_000
 
-function setup() {
+/** `surprise.albumKey` is filled in once the test has created that album. */
+function setup(surprise?: { key: string; albumKey: string }) {
   let now = T0
   const objects = new MemoryObjects()
   const store = createPoolStore(objects)
-  const pools = new PoolService(store, 'test-pepper-0123456789', () => now)
+  const pools = new PoolService(store, 'test-pepper-0123456789', () => now, surprise)
   const logs: string[] = []
   const background: Promise<unknown>[] = []
   const geocoder = { lookup: async () => ({ district: 'Mueang Chiang Mai', province: 'Chiang Mai' }) }
@@ -266,6 +267,113 @@ describe('games and album high score', () => {
     expect(objects.keys().some((k) => k.endsWith('highscore.json'))).toBe(true)
     await call('/api/pool', { method: 'DELETE', key })
     expect(objects.keys()).toEqual([])
+  })
+})
+
+describe('birthday surprise key', () => {
+  type Rounds = { gameId: string; photos: { id: string }[]; surprise?: { round: number; width: number; height: number } }
+  const admin = { 'X-Admin-Code': ADMIN }
+  const gift = () => sharp({ create: { width: 500, height: 400, channels: 3, background: { r: 250, g: 200, b: 220 } } }).jpeg().toBuffer()
+
+  async function surpriseSetup(photos = 4) {
+    const cfg = { key: '270926', albumKey: '' }
+    const t = setup(cfg)
+    cfg.albumKey = await t.createPool()
+    for (let i = 0; i < photos; i++) await t.upload(cfg.albumKey, { lat: String(18 + i), lng: '98.9', takenAt: `2024-09-0${i + 1}T10:00:00+07:00` }, 10 + i * 30)
+    const putGift = async () => t.call('/api/surprise/gift', { method: 'PUT', headers: admin, body: new Uint8Array(await gift()) })
+    const rounds = async (key = cfg.key) => (await (await t.call('/api/rounds?count=10', { key })).json()) as Rounds
+    const guess = (r: Rounds, i = 0, key = cfg.key) =>
+      t.call('/api/guess', { method: 'POST', key, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: r.photos[i].id, gameId: r.gameId, guess: { lat: 18, lng: 98.9 }, opened: [], timedOut: false }) })
+    /** A game counts as played at its first guess. */
+    const play = async (key = cfg.key) => {
+      const r = await rounds(key)
+      await guess(r, 0, key)
+      await guess(r, 1, key)
+      return r
+    }
+    const seen = (key = cfg.key) => t.call('/api/surprise/seen', { method: 'POST', key })
+    return { ...t, cfg, putGift, rounds, guess, play, seen }
+  }
+
+  it('opens the photos of the linked album (key is case-insensitive)', async () => {
+    const { cfg, rounds, status } = await surpriseSetup()
+    expect((await rounds(cfg.key)).photos).toHaveLength(4)
+    expect(await status(cfg.key)).toMatchObject({ photoCount: 4, playOnly: true })
+    expect(await status(cfg.albumKey)).toMatchObject({ playOnly: false })
+  })
+
+  it('is play-only: no uploads or deletes', async () => {
+    const { cfg, call, upload, rounds } = await surpriseSetup()
+    const { photos } = await rounds(cfg.albumKey)
+    expect((await upload(cfg.key)).status).toBe(403)
+    expect((await call(`/api/photos/${photos[0].id}`, { method: 'DELETE', key: cfg.key })).status).toBe(403)
+    expect((await call('/api/pool', { method: 'DELETE', key: cfg.key })).status).toBe(403)
+    expect((await rounds(cfg.albumKey)).photos).toHaveLength(4)
+  })
+
+  it('after one played game, every game has the gift in round 3 until the birthday page was seen', async () => {
+    const { cfg, putGift, rounds, play, seen } = await surpriseSetup()
+    expect((await putGift()).status).toBe(201)
+    expect((await rounds()).surprise).toBeUndefined() // loaded but never guessed: not played
+    expect((await play()).surprise).toBeUndefined() // game 1
+    await play(cfg.albumKey) // the album key never counts
+    expect((await rounds(cfg.albumKey)).surprise).toBeUndefined()
+    expect((await rounds()).surprise).toEqual({ round: 3, width: 500, height: 400 })
+    expect((await play()).surprise).toEqual({ round: 3, width: 500, height: 400 }) // reload / new game: still there
+    expect((await seen()).status).toBe(200)
+    expect((await rounds()).surprise).toBeUndefined()
+    expect((await seen(cfg.albumKey)).status).toBe(404) // only the surprise key
+  })
+
+  it('without an uploaded gift there is no surprise round', async () => {
+    const { play, rounds } = await surpriseSetup()
+    await play()
+    expect((await rounds()).surprise).toBeUndefined()
+  })
+
+  it('a small album gets the surprise in its last round', async () => {
+    const { putGift, rounds, play } = await surpriseSetup(2)
+    await putGift()
+    await play()
+    expect((await rounds()).surprise?.round).toBe(2)
+  })
+
+  it('gift upload needs the admin code and is re-encoded; only the surprise key can fetch it', async () => {
+    const { cfg, call, putGift, objects } = await surpriseSetup()
+    expect((await call('/api/surprise/gift', { method: 'PUT', body: new Uint8Array(await gift()) })).status).toBe(401)
+    expect((await call('/api/surprise/gift', { method: 'PUT', headers: admin, body: new Uint8Array([1, 2, 3, 4]) })).status).toBe(415)
+    expect((await call('/api/surprise/gift', { key: cfg.key })).status).toBe(404) // not uploaded yet
+    await putGift()
+    expect(objects.keys().some((k) => /^pools\/[0-9a-f-]+\/surprise\/gift\.webp$/.test(k))).toBe(true)
+    const res = await call('/api/surprise/gift', { key: cfg.key })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('image/webp')
+    expect((await call('/api/surprise/gift', { key: cfg.albumKey })).status).toBe(404)
+  })
+
+  it('the admin can reset the count and the seen flag', async () => {
+    const { call, putGift, rounds, play, seen } = await surpriseSetup()
+    await putGift()
+    await play()
+    await seen()
+    expect((await call('/api/surprise/reset', { method: 'POST' })).status).toBe(401)
+    expect((await call('/api/surprise/reset', { method: 'POST', headers: admin })).status).toBe(200)
+    expect((await play()).surprise).toBeUndefined()
+    expect((await rounds()).surprise?.round).toBe(3)
+  })
+
+  it('surprise games never touch the album high score', async () => {
+    const { cfg, rounds, guess, status } = await surpriseSetup(1)
+    const res = await guess(await rounds())
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { game?: unknown }).game).toBeUndefined()
+    expect(await status(cfg.albumKey)).toMatchObject({ highScore: null })
+  })
+
+  it('without the config the surprise routes are 404 and the key is just a wrong key', async () => {
+    const { call } = setup()
+    expect((await call('/api/surprise/gift', { method: 'PUT', headers: admin, body: new Uint8Array(await gift()) })).status).toBe(404)
+    expect((await call('/api/rounds', { key: '270926' })).status).toBe(401)
   })
 })
 

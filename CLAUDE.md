@@ -73,6 +73,10 @@ GeoGuessr-style browser game played on private, auto-expiring pools of the owner
   the header before decoding (413), non-photos → 415 before any decoder runs, and at most **2 photos
   decoding at once** server-wide (`createLimiter`). File names are never sent or logged. The server ALWAYS re-encodes to WebP q80 <= 1920 px with no metadata
   (`server/ingest.ts`), dedups by sha256, geocodes via a 1 req/s Nominatim queue.
+- **Birthday surprise key** (optional, env `SURPRISE_KEY` + `SURPRISE_ALBUM_KEY`): a play-only key for another
+  album (403 on upload/delete, no high score). A game counts as played at its first guess. From the 2nd game on,
+  round 3 is the gift (`pools/<id>/surprise/gift.webp`, admin `PUT /api/surprise/gift`) and a guess opens
+  `HbdPage` until it has been seen. `POST /api/surprise/reset` with the admin code. See `docs/deploy.md`.
 - **Layout** (single source of truth: `server/poolStore.ts`, shared with the sweeper):
   `keys/<hash>.json` -> `{poolId}`, `pools/<id>/pool.json` (`keyHash, createdAt, lastActivityAt, emptySince`),
   `pools/<id>/photos/<photoId>.{webp,json}`, `pools/<id>/hashes/<sha>`.

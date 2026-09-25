@@ -54,7 +54,9 @@ if (pepper.length < 16) {
 }
 
 const store = createPoolStore(objects)
-const pools = new PoolService(store, pepper)
+// Optional birthday surprise: an extra play-only key for one album (see docs/deploy.md).
+const surprise = env.SURPRISE_KEY && env.SURPRISE_ALBUM_KEY ? { key: env.SURPRISE_KEY, albumKey: env.SURPRISE_ALBUM_KEY } : undefined
+const pools = new PoolService(store, pepper, Date.now, surprise)
 const geocoder = createGeocoder({ userAgent: `PhotoGuessr/1.0 (${env.NOMINATIM_CONTACT || 'private photo game'})` })
 
 /** Render's proxy appends the real client IP as the LAST X-Forwarded-For entry; earlier ones are client-controlled. */

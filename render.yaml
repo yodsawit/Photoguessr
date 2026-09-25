@@ -32,3 +32,8 @@ services:
       # Contact for OpenStreetMap Nominatim's usage policy (e.g. an email). Only sent to Nominatim.
       - key: NOMINATIM_CONTACT
         sync: false
+      # Optional birthday surprise (docs/deploy.md): extra play-only key + the album it opens.
+      - key: SURPRISE_KEY
+        sync: false
+      - key: SURPRISE_ALBUM_KEY
+        sync: false

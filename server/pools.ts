@@ -30,7 +30,14 @@ export function hashKey(key: string, pepper: string): string {
 
 const sameHash = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b))
 
-export type AuthedPool = { pool: PoolRecord; hasPhotos: boolean }
+/** `surprise`: signed in with the birthday surprise key (play-only view of another album). */
+export type AuthedPool = { pool: PoolRecord; hasPhotos: boolean; surprise?: boolean }
+
+/**
+ * Birthday surprise: an extra key that opens another album's photos, play-only. Both keys come from
+ * env (SURPRISE_KEY, SURPRISE_ALBUM_KEY) and are never stored.
+ */
+export type SurpriseConfig = { key: string; albumKey: string }
 
 /** One key per pool: whoever has it can play, add/delete photos, see status and delete the pool. */
 export class PoolService {
@@ -38,6 +45,7 @@ export class PoolService {
     private readonly store: PoolStore,
     private readonly pepper: string,
     private readonly now: () => number = Date.now,
+    private readonly surprise?: SurpriseConfig,
   ) {
     if (pepper.length < 16) throw new Error('KEY_PEPPER must be at least 16 characters')
   }
@@ -63,6 +71,7 @@ export class PoolService {
   async authenticate(rawKey: unknown): Promise<AuthedPool> {
     const key = normalizeKey(rawKey)
     if (!key) throw new HttpError(401, 'Invalid key')
+    if (this.isSurpriseKey(key)) return { ...(await this.authenticate(this.surprise!.albumKey)), surprise: true }
     const keyHash = hashKey(key, this.pepper)
     const entry = await this.store.getKey(keyHash)
     const pool = entry && (await this.store.getPool(entry.poolId))
@@ -76,6 +85,25 @@ export class PoolService {
     const touched = { ...pool, lastActivityAt: this.iso() }
     await this.store.putPool(touched)
     return { pool: touched, hasPhotos }
+  }
+
+  get surpriseEnabled() {
+    const s = this.surprise
+    const key = s && normalizeKey(s.key)
+    return !!(key && normalizeKey(s.albumKey) && key !== normalizeKey(s.albumKey))
+  }
+
+  /** The album behind the surprise key (for the admin gift/reset routes); 404 if not set up. */
+  async surpriseAlbum(): Promise<AuthedPool> {
+    if (!this.surpriseEnabled) throw new HttpError(404, 'Not found')
+    return this.authenticate(this.surprise!.albumKey).catch((err: unknown) => {
+      throw err instanceof HttpError && err.status === 401 ? new HttpError(404, 'The surprise album was not found') : err
+    })
+  }
+
+  private isSurpriseKey(key: string) {
+    if (!this.surpriseEnabled) return false
+    return sameHash(hashKey(key, this.pepper), hashKey(normalizeKey(this.surprise!.key)!, this.pepper))
   }
 
   /** After storing a photo: the pool is no longer empty. */

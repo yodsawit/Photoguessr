@@ -5,9 +5,15 @@
 - [ ] You: try "Add photos" from the iPhone gallery (check location comes through)
 
 ## Next
+- [ ] You: Render env SURPRISE_KEY=270926, SURPRISE_ALBUM_KEY=6GV8OD (gift already in R2); reset the count after testing; keep 6GV8OD alive (72 h)
 - [ ] You: Render Blueprint deploy (same KEY_PEPPER as .env)
 
 ## Done
+- [x] HBD surprise key: tested locally by you, committed + pushed (2026-09-26)
+- [x] HBD 4: 89 tests + typecheck; browser: game 2 round 3 = gift under cards -> HBD page, seen -> normal again, reset; HbdPage 375 px OK (48 px button, no h-scroll); counting moved to first guess (StrictMode/reload-safe) (2026-09-26)
+- [x] HBD 3: client: gift replaces round photo, local scoring, lazy HbdPage (wrapped present -> gift, confetti) (2026-09-26)
+- [x] HBD 2: server: surprise key (play-only), 2nd game round 3, gift in R2 via admin PUT, reset; 65 server tests green (2026-09-26)
+- [x] HBD 1: server tests for the surprise key (red) (2026-09-26)
 - [x] v2.6 steps 3-6: browser pre-check + uploadPhoto, Add photos panel, docs; 80 tests; browser + curl checks (2026-09-26)
 - [x] v2.6 steps 1-2: magic-byte gate (415), 100 MP pixel limit (413), decode queue of 2, 40 MB body limit (413); tests (2026-09-25)
 - [x] Cards 2/3/5 % on a 55% base (107% max, 105% best, 55% floor) (2026-09-25)

@@ -24,6 +24,19 @@ Render dashboard → **New** → **Blueprint** → connect GitHub → `yodsawit/
 | `R2_ACCOUNT_ID` | Cloudflare account ID (only needed without `R2_S3_ENDPOINT`) |
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | From step 1 |
 | `NOMINATIM_CONTACT` | Your email. Sent only to OpenStreetMap Nominatim, as its usage policy asks |
+| `SURPRISE_KEY` / `SURPRISE_ALBUM_KEY` | Optional birthday surprise, see below. Leave empty to turn it off |
+
+### Birthday surprise (optional)
+`SURPRISE_KEY` is an extra key that plays the photos of the album `SURPRISE_ALBUM_KEY`. It is play-only:
+no uploads or deletes, and it doesn't count toward the high score. A game counts as played at its first
+guess. From the **2nd game** on, **round 3** hides the gift photo under the cards. Locking a guess (or
+running out of time) opens a Happy Birthday page with the gift instead of the result. After that page has
+been shown, games are normal again. Reloads and abandoned games can't use the surprise up.
+- Upload the gift once. It is cleaned like any photo and stored in R2 at `pools/<id>/surprise/gift.webp`:
+  `curl -X PUT -H "X-Admin-Code: $ADMIN_CODE" --data-binary @gift.jpg https://<app>/api/surprise/gift`
+- After testing, reset the count and the "seen" flag so her 2nd game is the surprise one:
+  `curl -X POST -H "X-Admin-Code: $ADMIN_CODE" https://<app>/api/surprise/reset`
+- The gift and the count are deleted with the album. The album still expires 72 h after its last activity.
 
 `KEY_PEPPER`: paste the **same value as in your local `.env`** (both use the same bucket) before creating any album. **Never change it afterwards**: every existing key would stop working.
 

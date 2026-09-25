@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
-import { ApiError, fetchPhotoUrl, fetchRounds, KEY_PATTERN, postGuess } from './game/api'
-import { BASE_PCT, bonusPercent, ROUND_SECONDS, TILE_BONUS_PCT, TIME_PER_TILE_SECONDS } from './game/scoring'
+import { ApiError, fetchPhotoUrl, fetchRounds, fetchSurpriseGiftUrl, KEY_PATTERN, markSurpriseSeen, postGuess } from './game/api'
+import { BASE_PCT, bonusPercent, ROUND_SECONDS, scoreRound, TILE_BONUS_PCT, TIME_PER_TILE_SECONDS } from './game/scoring'
 import { sound } from './game/sound'
-import type { GameProgress, GuessRequest, PublicPhoto } from './game/types'
+import type { GameProgress, GuessRequest, GuessResponse, PublicPhoto, SurpriseRound } from './game/types'
 import { useRound } from './game/useRound'
 import { GuessMap } from './components/GuessMap'
 import { KeyInput } from './components/KeyInput'
@@ -15,6 +15,12 @@ import { TileGrid } from './components/TileGrid'
 import { MuteToggle, Timer } from './components/Timer'
 import { AdminPage } from './pages/AdminPage'
 import { PoolHome } from './pages/PoolHome'
+
+/** Birthday surprise page: its own chunk, loaded only when the surprise round comes up. */
+const loadHbdPage = () => import('./pages/HbdPage')
+const HbdPage = lazy(loadHbdPage)
+/** Stand-in photo id for the surprise gift round (never sent to /api/guess). */
+const GIFT_ID = 'surprise-gift'
 
 /** Rounds per game. Albums with fewer photos play each photo once (shorter game). */
 const ROUNDS = 10
@@ -103,7 +109,7 @@ function JoinPage({ error, onJoin }: { error: string | null; onJoin: (key: strin
   )
 }
 
-type Load = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ready'; gameId: string; photos: PublicPhoto[] }
+type Load = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ready'; gameId: string; photos: PublicPhoto[]; surprise?: SurpriseRound }
 
 function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?: string | null) => void; onBack: () => void }) {
   const [gameKey, setGameKey] = useState(0)
@@ -121,7 +127,7 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
     (id: string) => {
       let url = photoCache.current.get(id)
       if (!url) {
-        url = fetchPhotoUrl(poolKey, id)
+        url = id === GIFT_ID ? fetchSurpriseGiftUrl(poolKey) : fetchPhotoUrl(poolKey, id)
         photoCache.current.set(id, url)
         url.catch(() => photoCache.current.delete(id))
       }
@@ -142,7 +148,7 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
     let cancelled = false
     setLoad({ state: 'loading' })
     fetchRounds(poolKey, ROUNDS)
-      .then(({ gameId, photos }) => !cancelled && setLoad({ state: 'ready', gameId, photos }))
+      .then(({ gameId, photos, surprise }) => !cancelled && setLoad({ state: 'ready', gameId, photos, surprise }))
       .catch((err: unknown) => {
         if (cancelled) return
         if (err instanceof ApiError && (err.status === 401 || err.status === 404)) onLeave('That album key is not valid, or the album has expired.')
@@ -193,7 +199,11 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
     )
   }
 
-  const { photos, gameId } = load
+  const { gameId, surprise } = load
+  // Birthday surprise: the gift takes the place of that round's photo.
+  const photos = surprise
+    ? load.photos.map((p, i) => (i === surprise.round - 1 ? { id: GIFT_ID, width: surprise.width, height: surprise.height } : p))
+    : load.photos
   const next = (score: number, game?: GameProgress) => {
     if (game) setProgress(game)
     setTotal((t) => t + score)
@@ -218,6 +228,7 @@ function Game({ poolKey, onLeave, onBack }: { poolKey: string; onLeave: (reason?
           totalBefore={total}
           onDone={next}
           onLeave={onBack}
+          isGift={photos[roundIndex].id === GIFT_ID}
         />
       )}
     </Shell>
@@ -235,11 +246,22 @@ type RoundProps = {
   totalBefore: number
   onDone: (score: number, game?: GameProgress) => void
   onLeave: () => void
+  /** Birthday surprise round: scored locally, and the birthday page replaces the result. */
+  isGift?: boolean
 }
 
-function Round({ poolKey, gameId, photo, nextPhotoId, loadPhoto, roundNo, rounds, totalBefore, onDone, onLeave }: RoundProps) {
-  const grade = useCallback((req: GuessRequest) => postGuess(poolKey, { ...req, gameId }), [poolKey, gameId])
+/** The gift round has no answer on the server: any guess (or a timeout) just opens the birthday page. */
+const giftGrade = async (req: GuessRequest): Promise<GuessResponse> => ({
+  ...scoreRound(req.guess ?? { lat: 0, lng: 0 }, req.guess, new Set(req.opened), req.timedOut),
+  answer: { lat: 0, lng: 0, takenAt: null, district: '', province: '' },
+})
+
+function Round({ poolKey, gameId, photo, nextPhotoId, loadPhoto, roundNo, rounds, totalBefore, onDone, onLeave, isGift }: RoundProps) {
+  const grade = useCallback((req: GuessRequest) => (isGift ? giftGrade(req) : postGuess(poolKey, { ...req, gameId })), [poolKey, gameId, isGift])
   const round = useRound(photo, grade)
+  useEffect(() => {
+    if (isGift) void loadHbdPage().catch(() => undefined)
+  }, [isGift])
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imageError, setImageError] = useState(false)
 
@@ -265,6 +287,19 @@ function Round({ poolKey, gameId, photo, nextPhotoId, loadPhoto, roundNo, rounds
   useEffect(() => {
     if (autoStart && imageUrl && phase === 'ready') start()
   }, [autoStart, imageUrl, phase, start])
+
+  const giftOpened = isGift && round.phase === 'result'
+  useEffect(() => {
+    if (giftOpened) void markSurpriseSeen(poolKey).catch(() => undefined)
+  }, [giftOpened, poolKey])
+
+  if (giftOpened && imageUrl) {
+    return (
+      <Suspense fallback={null}>
+        <HbdPage imageUrl={imageUrl} onBack={onLeave} />
+      </Suspense>
+    )
+  }
 
   return (
     <>

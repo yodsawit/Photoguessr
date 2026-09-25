@@ -44,4 +44,7 @@ export type GameProgress = {
 /** Server's answer to a guess: the score plus the revealed answer (and game progress if tracked). */
 export type GuessResponse = RoundResult & { answer: Answer; game?: GameProgress }
 
-export type RoundsResponse = { gameId: string; photos: PublicPhoto[] }
+/** Birthday surprise (surprise key only): this round shows the gift photo, then the birthday page. */
+export type SurpriseRound = { round: number; width: number; height: number }
+
+export type RoundsResponse = { gameId: string; photos: PublicPhoto[]; surprise?: SurpriseRound }

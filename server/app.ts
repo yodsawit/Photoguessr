@@ -35,6 +35,12 @@ export type AppDeps = {
 }
 
 const MAX_ROUNDS = 20
+/**
+ * Birthday surprise: from the 2nd game played with the surprise key, round 3 is the gift, until the
+ * birthday page has been reached. Reloads and retries can't use it up.
+ */
+const SURPRISE_GAME = 2
+const SURPRISE_ROUND = 3
 
 /** Counts WRONG key/admin attempts per IP; once over the limit the IP waits, even with a correct key. */
 class WrongAttemptLimiter {
@@ -146,6 +152,22 @@ export function createApp(deps: AppDeps) {
     }
   }
 
+  /** The surprise key only plays; uploads and deletes need the album's own key. */
+  const ownerAuth = async (c: Context): Promise<AuthedPool> => {
+    const authed = await auth(c)
+    if (authed.surprise) throw new HttpError(403, 'This key can only play')
+    return authed
+  }
+
+  const adminOnly = (c: Context) => {
+    guard(c)
+    if (!deps.adminCode) throw new HttpError(403, 'Album creation is disabled')
+    if (!sameSecret(c.req.header('X-Admin-Code') ?? '', deps.adminCode)) {
+      limiter.fail(clientIp(c))
+      throw new HttpError(401, 'Invalid admin code')
+    }
+  }
+
   const photoIdParam = (c: Context) => {
     const id = c.req.param('id') ?? ''
     if (!isPhotoId(id)) throw new HttpError(404, 'Not found')
@@ -168,25 +190,19 @@ export function createApp(deps: AppDeps) {
   // ---- pool (one key does everything) -----------------------------------------------------
 
   app.post('/api/pools', async (c) => {
-    guard(c)
-    const code = c.req.header('X-Admin-Code') ?? ''
-    if (!deps.adminCode) throw new HttpError(403, 'Album creation is disabled')
-    if (!sameSecret(code, deps.adminCode)) {
-      limiter.fail(clientIp(c))
-      throw new HttpError(401, 'Invalid admin code')
-    }
+    adminOnly(c)
     const { key } = await pools.createPool()
     return c.json({ key }, 201)
   })
 
   app.get('/api/pool', async (c) => {
-    const { pool, hasPhotos } = await auth(c)
+    const { pool, hasPhotos, surprise } = await auth(c)
     const [ids, highScore] = await Promise.all([store.listPhotoIds(pool.poolId), store.getHighScore(pool.poolId)])
-    return c.json({ photoCount: ids.length, empty: !hasPhotos, lastActivityAt: pool.lastActivityAt, expiresAt: expiresAt(pool, hasPhotos), highScore })
+    return c.json({ photoCount: ids.length, empty: !hasPhotos, lastActivityAt: pool.lastActivityAt, expiresAt: expiresAt(pool, hasPhotos), highScore, playOnly: !!surprise })
   })
 
   app.delete('/api/pool', async (c) => {
-    const { pool } = await auth(c)
+    const { pool } = await ownerAuth(c)
     await store.deletePool(pool)
     return c.json({ deleted: true })
   })
@@ -200,7 +216,7 @@ export function createApp(deps: AppDeps) {
   })
 
   app.post('/api/photos', photoSizeLimit, async (c) => {
-    const { pool } = await auth(c)
+    const { pool } = await ownerAuth(c)
     let bytes: Uint8Array
     let fields: { lat: unknown; lng: unknown; takenAt: unknown }
     const type = c.req.header('Content-Type') ?? ''
@@ -247,7 +263,7 @@ export function createApp(deps: AppDeps) {
   })
 
   app.delete('/api/photos/:id', async (c) => {
-    const { pool } = await auth(c)
+    const { pool } = await ownerAuth(c)
     if (!(await store.deletePhoto(pool.poolId, photoIdParam(c)))) throw new HttpError(404, 'Not found')
     await pools.markMaybeEmpty(pool)
     return c.json({ deleted: true })
@@ -256,7 +272,7 @@ export function createApp(deps: AppDeps) {
   // ---- playing -----------------------------------------------------------------------------
 
   app.get('/api/rounds', async (c) => {
-    const { pool } = await auth(c)
+    const { pool, surprise } = await auth(c)
     const count = Math.min(MAX_ROUNDS, Math.max(1, Number(c.req.query('count')) || 1))
     const [allIds, days] = await Promise.all([store.listPhotoIds(pool.poolId), store.listPhotoDays(pool.poolId)])
     // One-time backfill for photos stored before the day index existed.
@@ -279,6 +295,12 @@ export function createApp(deps: AppDeps) {
       return a ? [{ id, width: a.width, height: a.height }] : []
     })
     const { gameId } = games.create(pool.poolId, photos.map((p) => p.id))
+    if (surprise && photos.length > 0) {
+      const state = await store.getSurprise(pool.poolId)
+      if (state.gift && !state.seen && state.games >= SURPRISE_GAME - 1) {
+        return c.json({ gameId, photos, surprise: { round: Math.min(SURPRISE_ROUND, photos.length), ...state.gift } })
+      }
+    }
     return c.json({ gameId, photos })
   })
 
@@ -290,7 +312,7 @@ export function createApp(deps: AppDeps) {
   })
 
   app.post('/api/guess', async (c) => {
-    const { pool } = await auth(c)
+    const { pool, surprise } = await auth(c)
     const req = (await c.req.json().catch(() => null)) as Record<string, unknown> | null
     const id = typeof req?.id === 'string' ? req.id : ''
     if (!isPhotoId(id)) throw new HttpError(400, 'Invalid guess')
@@ -307,8 +329,15 @@ export function createApp(deps: AppDeps) {
     // Record against the game (server-computed score only) and update the album high score.
     let game: GameProgress | undefined
     const tracked = games.get(req?.gameId, pool.poolId)
+    const firstGuess = tracked?.scores.size === 0
     const progress = tracked && games.record(tracked, id, result.finalScore)
-    if (progress) {
+    if (progress && surprise) {
+      // Surprise-key games don't count toward the high score; a game counts as played at its first guess.
+      if (firstGuess) {
+        const state = await store.getSurprise(pool.poolId)
+        await store.putSurprise(pool.poolId, { ...state, games: state.games + 1 })
+      }
+    } else if (progress) {
       game = progress
       if (progress.done) {
         const best = await store.getHighScore(pool.poolId)
@@ -319,6 +348,44 @@ export function createApp(deps: AppDeps) {
       }
     }
     return c.json({ ...result, answer: { lat, lng, takenAt, district, province }, ...(game && { game }) })
+  })
+
+  // ---- birthday surprise (see PoolService surprise config) ------------------------------------
+
+  app.get('/api/surprise/gift', async (c) => {
+    const { pool, surprise } = await auth(c)
+    const image = surprise ? await store.getGift(pool.poolId) : null
+    if (!image) throw new HttpError(404, 'Not found')
+    return c.body(image as Uint8Array<ArrayBuffer>, 200, { 'Content-Type': 'image/webp' })
+  })
+
+  /** The birthday page was reached: later games are normal again. */
+  app.post('/api/surprise/seen', async (c) => {
+    const { pool, surprise } = await auth(c)
+    if (!surprise) throw new HttpError(404, 'Not found')
+    const state = await store.getSurprise(pool.poolId)
+    await store.putSurprise(pool.poolId, { ...state, seen: true })
+    return c.json({ seen: true })
+  })
+
+  app.put('/api/surprise/gift', photoSizeLimit, async (c) => {
+    adminOnly(c)
+    const { pool } = await pools.surpriseAlbum()
+    const bytes = new Uint8Array(await c.req.arrayBuffer())
+    // Same cleaning as album photos (magic bytes, pixel limit, WebP without metadata); the location is unused.
+    const processed = await decodeQueue(() => processUpload(bytes, { lat: '0', lng: '0' }))
+    await store.putGift(pool.poolId, processed.image)
+    const state = await store.getSurprise(pool.poolId)
+    await store.putSurprise(pool.poolId, { ...state, gift: { width: processed.width, height: processed.height } })
+    return c.json({ width: processed.width, height: processed.height, games: state.games }, 201)
+  })
+
+  app.post('/api/surprise/reset', async (c) => {
+    adminOnly(c)
+    const { pool } = await pools.surpriseAlbum()
+    const state = await store.getSurprise(pool.poolId)
+    await store.putSurprise(pool.poolId, { ...state, games: 0, seen: false })
+    return c.json({ games: 0, seen: false, gift: state.gift !== null })
   })
 
   app.all('/api/*', () => {
