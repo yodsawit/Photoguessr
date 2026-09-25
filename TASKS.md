@@ -4,6 +4,7 @@
 - [ ] You: Render Blueprint deploy (same KEY_PEPPER as .env)
 
 ## Done
+- [x] Cards 2/3/5 % on a 55% base (107% max, 105% best, 55% floor) (2026-09-25)
 - [x] v2.5: 40 s + 5 s per card, cards 4/7/12 %, D = 1000 km, round result shows letter grade only; pushed (2026-09-25)
 - [x] Pinpoint +10 after the multiply, within 100 m; album home stat tiles balanced (shared StatTile, compact medal) (2026-09-25)
 - [x] v2.4 steps 2-5: distinct days per game (+ backfill), medal above score, no 1,000 label, flag pin, photo card no longer stretches; 66 tests + browser check (2026-09-25)

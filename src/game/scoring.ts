@@ -13,8 +13,10 @@ export const PINPOINT_METERS = 100
 export const PINPOINT_POINTS = 10
 
 export type TileKind = 'corner' | 'side' | 'middle'
-/** Points % kept by each card while it stays hidden (starts at 0%; all hidden = 120%). */
-export const TILE_BONUS_PCT: Record<TileKind, number> = { corner: 4, side: 7, middle: 12 }
+/** Every round starts from this % of the distance points, whatever is opened. */
+export const BASE_PCT = 55
+/** Extra % kept by each card while it stays hidden (on top of BASE_PCT; all hidden = 107%). */
+export const TILE_BONUS_PCT: Record<TileKind, number> = { corner: 2, side: 3, middle: 5 }
 
 const EARTH_RADIUS_KM = 6371.0088
 
@@ -42,9 +44,9 @@ export function tileKind(index: number): TileKind {
   return 'middle'
 }
 
-/** Sum of the % of every card still hidden: 0..120. */
+/** BASE_PCT + the % of every card still hidden: 55..107. */
 export function bonusPercent(opened: ReadonlySet<number>): number {
-  let pct = 0
+  let pct = BASE_PCT
   for (let i = 0; i < TILE_COUNT; i++) if (!opened.has(i)) pct += TILE_BONUS_PCT[tileKind(i)]
   return pct
 }
@@ -53,7 +55,7 @@ export type RoundResult = {
   guess: LatLng | null
   distanceKm: number | null
   baseScore: number
-  /** Points % kept (0..120). */
+  /** Points % kept (55..107). */
   bonusPct: number
   finalScore: number
   /** Guess was within PINPOINT_METERS: finalScore includes +PINPOINT_POINTS. */
@@ -64,7 +66,7 @@ export type RoundResult = {
 
 /**
  * final = round(distance points × points%) [+10 pinpoint within 100 m]. Only needs a pin; guessing
- * without opening any card is allowed and keeps the full 120%.
+ * without opening any card is allowed and keeps the full 107%.
  */
 export function scoreRound(answer: LatLng, guess: LatLng | null, opened: ReadonlySet<number>, timedOut: boolean): RoundResult {
   const bonusPct = bonusPercent(opened)

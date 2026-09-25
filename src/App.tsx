@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { ApiError, fetchPhotoUrl, fetchRounds, KEY_PATTERN, postGuess } from './game/api'
-import { bonusPercent, ROUND_SECONDS, TILE_BONUS_PCT, TIME_PER_TILE_SECONDS } from './game/scoring'
+import { BASE_PCT, bonusPercent, ROUND_SECONDS, TILE_BONUS_PCT, TIME_PER_TILE_SECONDS } from './game/scoring'
 import { sound } from './game/sound'
 import type { GameProgress, GuessRequest, PublicPhoto } from './game/types'
 import { useRound } from './game/useRound'
@@ -348,8 +348,8 @@ function ReadyCard({ loading, failed, rounds, onStart }: { loading: boolean; fai
       <ul className="mt-4 space-y-2 text-left text-sm text-ink">
         <li>🃏 The photo hides under 16 cards. Open as many as you need — or none, if you're feeling brave.</li>
         <li>
-          ✨ Every hidden card keeps its points: corners <b>{TILE_BONUS_PCT.corner}%</b>, sides <b>{TILE_BONUS_PCT.side}%</b>, middle{' '}
-          <b>{TILE_BONUS_PCT.middle}%</b>. Your score is distance points × those %.
+          ✨ You always keep <b>{BASE_PCT}%</b>, and every hidden card adds more: corners <b>{TILE_BONUS_PCT.corner}%</b>, sides{' '}
+          <b>{TILE_BONUS_PCT.side}%</b>, middle <b>{TILE_BONUS_PCT.middle}%</b>. Your score is distance points × that total.
         </li>
         <li>📍 Drop a pin on the map and guess. Closer = more points.</li>
         <li>

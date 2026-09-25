@@ -18,13 +18,13 @@ GeoGuessr-style browser game played on private, auto-expiring pools of the owner
 
 ## Game rules (source of truth: `src/game/scoring.ts`)
 - Photo hidden under a 4x4 grid of cards; player opens them one at a time. Opening none is allowed
-  (guess blind, keep the full 120%).
-- **Points %** starts at 0%; every card still hidden adds corner 4%, side 7%, middle 12%
-  (all hidden = 120%, best real case 116%, all opened = 0%). UI says "Points", never "bonus",
+  (guess blind, keep the full 107%).
+- **Points %** starts at a **55% base** (kept whatever is opened); every card still hidden adds
+  corner 2%, side 3%, middle 5% (all hidden = 107%, best real case 105%, all opened = 55%). UI says "Points", never "bonus",
   and never "+" before %.
 - **Distance points** = 100 * e^(-10 * min(d / 1000 km, 1)), d = haversine km.
 - **Pinpoint**: a guess within 100 m adds +10 to the final score, **after** the % (perfect round
-  = 100 × 116% + 10 = 126; even with every card opened a pinpoint scores 10).
+  = 100 × 105% + 10 = 115; with every card opened a perfect pinpoint is 100 × 55% + 10 = 65).
 - **Final** = round(distance points * points% / 100) [+10 pinpoint]. 0 only without a pin.
 - **Clock**: 40 s per round, **+5 s per opened card** ("+5s" pop). Last 10 s: gentle number bump
   each second + soft Web Audio tick (`src/game/sound.ts`, mute toggle remembered per device).
@@ -34,7 +34,7 @@ GeoGuessr-style browser game played on private, auto-expiring pools of the owner
   A game prefers photos from **different days** (`server/pick.ts`, day index
   `pools/<id>/days/<day|none>/<photoId>`, backfilled on first game); same-day photos only fill up.
 - Result: full photo, both pins + line, distance, district + province (English), photo date,
-  "51.3 × 116% = 60" (or "100.0 × 116% + 🎯10 = 126" on a pinpoint) and the **letter grade in its
+  "51.3 × 105% = 54" (or "100.0 × 105% + 🎯10 = 115" on a pinpoint) and the **letter grade in its
   colour only** (no medal between rounds; medals are for game over and the album high score).
   The answer pin has a white flag; the guess pin a dot.
 - **Grades** (`gradeFor`, per round; a game uses the average): F <50 rust, D 50+ purple,
