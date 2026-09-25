@@ -24,3 +24,19 @@ UI components adapted from free community sources (see CLAUDE.md for the approve
 | `alarm` — twin-bell alarm-clock ring | Synthesized for this project | — |
 
 All files were trimmed, loudness-normalised and re-encoded to mp3; the music has a fade in/out.
+
+## Birthday party page (`/hbd`, `public/hbd/`)
+
+Third-party meme content, not CC0, supplied by the owner for this one personal birthday page (see
+CLAUDE.md). The game itself never uses it.
+
+| File | Source |
+|---|---|
+| `song.mp3`: "Magic Mamaliga" by OMFO (Borat soundtrack), meme clip | [Myinstants](https://www.myinstants.com/en/instant/borat-magic-mamaliga-41708/) · [Spotify](https://open.spotify.com/track/0BvrrxYDRXVjsWH0CzRQxg) |
+| `cat-1.mp4` … `cat-7.mp4`: green-screen cat meme clips | TikTok, supplied by the owner; cropped, re-encoded to H.264, no audio |
+| `explosion.mp4`: green-screen explosion | Supplied by the owner; trimmed, re-encoded to H.264, no audio |
+| `photo.webp` | The owner's photo, re-encoded without metadata |
+| boom sound | `public/sfx/overflow.mp3` (Kenney, CC0) |
+
+The green screen is removed in the browser by `src/components/ChromaVideo.tsx` (WebGL). The title,
+flames and confetti on that page are original (motion/react).

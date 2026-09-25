@@ -49,6 +49,9 @@ GeoGuessr-style browser game played on private, auto-expiring pools of the owner
   Admin reset: `POST /api/highscore/reset` with `X-Admin-Code` + the album key as Bearer.
 
 ## Sound (`src/game/sfx.ts` catalogue, `src/game/sound.ts` player)
+- **Exception:** the personal birthday page `/hbd` (`src/pages/HbdParty.tsx`) uses meme content (Magic Mamaliga,
+  green-screen TikTok cat clips, an explosion clip) from `public/hbd/`, keyed in the browser by
+  `src/components/ChromaVideo.tsx` (WebGL). Never reuse those files elsewhere.
 - Sound files are **CC0 only** (or made for the project), live in `public/sfx/` as mp3 and are credited in
   `CREDITS.md`. Never copy GeoGuessr's (or any game's) own sounds or music.
 - Effects: pin, guess, card, score count ticks, pinpoint, round grade (4 tiers), game-over bar ticks (pitch rises),

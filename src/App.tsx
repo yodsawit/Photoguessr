@@ -20,6 +20,8 @@ import { SoundsPage } from './pages/SoundsPage'
 /** Birthday surprise page: its own chunk, loaded only when the surprise round comes up. */
 const loadHbdPage = () => import('./pages/HbdPage')
 const HbdPage = lazy(loadHbdPage)
+/** /hbd: public goofy birthday party page (own chunk). */
+const HbdParty = lazy(() => import('./pages/HbdParty'))
 /** Stand-in photo id for the surprise gift round (never sent to /api/guess). */
 const GIFT_ID = 'surprise-gift'
 
@@ -56,6 +58,12 @@ export default function App() {
   const path = window.location.pathname.replace(/\/+$/, '')
   if (path === '/admin') return <AdminPage />
   if (path === '/sounds') return <SoundsPage />
+  if (path === '/hbd')
+    return (
+      <Suspense fallback={null}>
+        <HbdParty />
+      </Suspense>
+    )
   if (path === '/manage') window.history.replaceState(null, '', '/') // old link: album management now lives on the album screen
   return <PoolPage />
 }
