@@ -6,6 +6,7 @@ import { AddPhotos } from './AddPhotos'
 import { gameGrade } from '../game/scoring'
 import type { HighScore } from '../game/types'
 import { gradeTextColor, GradeMedal } from '../components/GradeMedal'
+import { SHORTCUT_URL } from '../game/shortcut'
 
 const formatWhen = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -98,6 +99,7 @@ export function PoolHome({ poolKey, onPlay, onLeave }: Props) {
               <summary className="cursor-pointer py-2 font-bold text-ink">Album key &amp; settings</summary>
               <div className="mt-2 space-y-3 pb-2">
                 <KeyCard value={poolKey} />
+                <ShortcutButton poolKey={poolKey} />
                 {status.playOnly ? (
                   <p className="text-xs text-muted">This key can play this album.</p>
                 ) : (
@@ -148,5 +150,34 @@ function HighScoreTile({ highScore }: { highScore: HighScore | null }) {
       </span>
       <GradeMedal info={info} size="xs" />
     </StatTile>
+  )
+}
+
+/**
+ * Adds the iPhone Shortcut for this album: copies the key, then opens the shortcut's iCloud page.
+ * When it's added, iOS asks for the album key; paste it. The key never goes into the link.
+ */
+function ShortcutButton({ poolKey }: { poolKey: string }) {
+  const [copied, setCopied] = useState(false)
+  if (!SHORTCUT_URL) return null
+  return (
+    <div className="space-y-1.5">
+      <a
+        href={SHORTCUT_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => {
+          // Same tap as the link, so iOS allows both; if the clipboard is blocked the key is shown above.
+          navigator.clipboard?.writeText(poolKey).then(() => setCopied(true), () => undefined)
+        }}
+        className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-sand bg-white font-bold text-ink shadow-sm transition active:scale-[0.98]"
+      >
+        ⚡ Add iPhone Shortcut
+      </a>
+      <p className="text-xs text-muted">
+        {copied ? 'Key copied ✓ — ' : ''}When iPhone asks for the album key while adding the shortcut, paste it ({poolKey}). Then
+        share photos to <b>Add to PhotoGuessr</b>.
+      </p>
+    </div>
   )
 }

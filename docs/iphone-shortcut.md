@@ -35,12 +35,35 @@ You need: your **album key** (6 characters, from `/admin`) and your game URL, e.
         - `lat` → **Text** → `Lat`
         - `lng` → **Text** → `Lng`
         - `takenAt` → **Text** → `Taken`
-   9. **Show Result** → *Contents of URL*. Success shows `{"photoId": …}`; otherwise it shows the reason.
-      Remove it later if you don't want a popup per photo.
+   9. **Show Notification** → *Contents of URL* (turn **Play Sound** off if you like). It appears as a
+      banner that goes away by itself, so you don't need to tap Done. Success shows `{"photoId": …}`;
+      otherwise it shows the reason. Use **Show Result** instead only while you're debugging, because it
+      stays on screen until you tap Done.
+   - **Skip photos without a location before sending them:** right after step 3 (`Lng`), add **If** →
+     *Location* → **has any value**. Drag steps 4–10 inside the **If**. For **Otherwise**, leave it
+     empty, or add **Show Notification** "Skipped: no location". Those photos never make a request.
 5. After the repeat, add **Show Notification**: "Added to PhotoGuessr" (optional).
 
 **Alternative without form fields.** Set Request Body to **File** → *Converted Image*, and send the
 answer as headers instead: `X-Lat` = `Lat`, `X-Lng` = `Lng`, `X-Taken-At` = `Taken` (plus `Authorization`).
+
+## Share one shortcut for every album (the "⚡ Add iPhone Shortcut" button)
+The album home can link to one shared shortcut that asks for the album key when it's added. Never
+share a shortcut with a real key typed in: anyone with the iCloud link would get that album.
+
+1. At the very top of the shortcut (before Repeat), add a **Text** action and type `ABC123` in it.
+2. In **Get Contents of URL**, edit the header `Authorization`: delete the typed key and keep `Bearer `
+   (with the space). Right after it, tap **Select Variable** above the keyboard, then tap the **Text**
+   action, so the value reads `Bearer [Text]`. (Renaming isn't needed; to use a name, add
+   **Set Variable** `AlbumKey` after the Text action and insert that instead.)
+3. **ⓘ → Setup** (or *Import Questions*) → **Add Question** → pick the **Text** action.
+   Question: `What's your album key?`. Default answer: `ABC123`, never a real key.
+4. **Share → Copy iCloud Link**. Put that link in `SHORTCUT_URL` (`src/game/shortcut.ts`) and deploy.
+   Delete any older shared link that still has a real key in it
+   (Settings → your name → iCloud → Manage… → Shortcuts, or re-share after the edit).
+
+Tapping the button copies the key, then opens the link. When iPhone asks "What's your album key?"
+while adding the shortcut, paste the key. To switch albums later, edit the Text action.
 
 ## Use it
 Photos → select photos → Share → **Add to PhotoGuessr**.
