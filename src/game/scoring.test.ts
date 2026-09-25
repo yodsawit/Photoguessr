@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bonusPercent, gameGrade, geoScore, gradeFor, haversineKm, MAP_SIZE_KM, PINPOINT_POINTS, scoreRound, TILE_BONUS_PCT, tileKind, TILE_COUNT, TIME_PER_TILE_SECONDS } from './scoring'
+import { bonusPercent, gameGrade, geoScore, gradeFor, haversineKm, MAP_SIZE_KM, PINPOINT_METERS, PINPOINT_POINTS, scoreRound, TILE_BONUS_PCT, tileKind, TILE_COUNT, TIME_PER_TILE_SECONDS } from './scoring'
 
 const CHIANG_MAI = { lat: 18.8018, lng: 98.9672 }
 const BANGKOK = { lat: 13.7563, lng: 100.5018 }
@@ -51,18 +51,18 @@ describe('geo scoring (D = 500 km, capped with min(d/D, 1))', () => {
 describe('scoreRound (final = round(base × bonus%))', () => {
   it('multiplies by the bonus percentage and rounds', () => {
     const exact = scoreRound(CHIANG_MAI, CHIANG_MAI, new Set([0]), false)
-    expect(exact).toMatchObject({ baseScore: 110, bonusPct: 106, finalScore: 117, pinpoint: true }) // (100 + 10) x 106%
+    expect(exact).toMatchObject({ baseScore: 100, bonusPct: 106, finalScore: 116, pinpoint: true }) // 100 x 106% + 10
     const near = scoreRound(CHIANG_MAI, { lat: 18.9, lng: 98.9672 }, new Set([5]), false) // ~11 km
     expect(near.pinpoint).toBe(false)
     expect(near.finalScore).toBe(Math.round(geoScore(near.distanceKm!) * 0.93))
     expect(near.finalScore).toBeGreaterThan(70)
   })
   it('opening every card leaves 0% bonus, so the round scores 0', () => {
-    expect(scoreRound(CHIANG_MAI, CHIANG_MAI, all, false).finalScore).toBe(0)
+    expect(scoreRound(CHIANG_MAI, BANGKOK, all, false).finalScore).toBe(0)
   })
   it('scores 0 only without a pin; guessing blind (no card opened) keeps the full 108%', () => {
     expect(scoreRound(CHIANG_MAI, null, new Set([0]), true).finalScore).toBe(0)
-    expect(scoreRound(CHIANG_MAI, CHIANG_MAI, new Set(), false)).toMatchObject({ bonusPct: 108, finalScore: 119, pinpoint: true }) // (100+10) x 108%
+    expect(scoreRound(CHIANG_MAI, CHIANG_MAI, new Set(), false)).toMatchObject({ bonusPct: 108, finalScore: 118, pinpoint: true }) // 100 x 108% + 10
   })
 })
 
@@ -86,16 +86,22 @@ describe('grades', () => {
   })
 })
 
-describe('pinpoint (+10 raw points under 50 m)', () => {
+describe('pinpoint (+10 after the multiply, within 100 m)', () => {
   const metersNorth = (m: number) => ({ lat: CHIANG_MAI.lat + m / 111_195, lng: CHIANG_MAI.lng })
-  it('adds 10 raw points before the % when under 50 m', () => {
+  it('adds 10 to the final score, not to the raw points', () => {
     expect(PINPOINT_POINTS).toBe(10)
-    const at49 = scoreRound(CHIANG_MAI, metersNorth(49), new Set([0]), false)
-    expect(at49.pinpoint).toBe(true)
-    expect(at49.baseScore).toBeCloseTo(geoScore(at49.distanceKm!) + 10, 6)
-    const at51 = scoreRound(CHIANG_MAI, metersNorth(51), new Set([0]), false)
-    expect(at51.pinpoint).toBe(false)
-    expect(at51.baseScore).toBeCloseTo(99.9, 1)
+    expect(PINPOINT_METERS).toBe(100)
+    const at99 = scoreRound(CHIANG_MAI, metersNorth(99), new Set([5]), false) // 93%
+    expect(at99.pinpoint).toBe(true)
+    expect(at99.baseScore).toBeCloseTo(geoScore(at99.distanceKm!), 6)
+    expect(at99.finalScore).toBe(Math.round((geoScore(at99.distanceKm!) * 93) / 100) + 10)
+    const at101 = scoreRound(CHIANG_MAI, metersNorth(101), new Set([5]), false)
+    expect(at101.pinpoint).toBe(false)
+    expect(at101.finalScore).toBe(Math.round((geoScore(at101.distanceKm!) * 93) / 100))
+  })
+  it('still counts when every card is opened (0% + 10 = 10)', () => {
+    const all16 = new Set(Array.from({ length: TILE_COUNT }, (_, i) => i))
+    expect(scoreRound(CHIANG_MAI, CHIANG_MAI, all16, false)).toMatchObject({ bonusPct: 0, finalScore: 10, pinpoint: true })
   })
   it('never applies without a pin', () => {
     expect(scoreRound(CHIANG_MAI, null, new Set([0]), true)).toMatchObject({ finalScore: 0, pinpoint: false })

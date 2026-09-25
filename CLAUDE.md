@@ -23,8 +23,9 @@ GeoGuessr-style browser game played on private, auto-expiring pools of the owner
   (all hidden = 108%, best real case 106%, all opened = 0%). UI says "Points", never "bonus",
   and never "+" before %.
 - **Distance points** = 100 * e^(-10 * min(d / 500 km, 1)), d = haversine km.
-- **Pinpoint**: a guess under 50 m adds +10 raw points before the % (perfect round = 117).
-- **Final** = round((distance points [+10]) * points% / 100). 0 only without a pin.
+- **Pinpoint**: a guess within 100 m adds +10 to the final score, **after** the % (perfect round
+  = 100 × 106% + 10 = 116; even with every card opened a pinpoint scores 10).
+- **Final** = round(distance points * points% / 100) [+10 pinpoint]. 0 only without a pin.
 - **Clock**: 30 s per round, **+10 s per opened card** ("+10s" pop). Last 10 s: gentle number bump
   each second + soft Web Audio tick (`src/game/sound.ts`, mute toggle remembered per device).
   At 0 s: auto-submit (0 if no pin).
@@ -33,7 +34,7 @@ GeoGuessr-style browser game played on private, auto-expiring pools of the owner
   A game prefers photos from **different days** (`server/pick.ts`, day index
   `pools/<id>/days/<day|none>/<photoId>`, backfilled on first game); same-day photos only fill up.
 - Result: full photo, both pins + line, distance, district + province (English), photo date,
-  "51.3 × 106% = 54" (or "(100.0 + 🎯10) × 106% = 117" on a pinpoint) and a small grade medal.
+  "51.3 × 106% = 54" (or "100.0 × 106% + 🎯10 = 116" on a pinpoint) and a small grade medal.
   The answer pin has a white flag; the guess pin a dot.
 - **Grades** (`gradeFor`, per round; a game uses the average): F <50 rust, D 50+ purple,
   C 60+ yellow, B 70+ blue, A 80+ green, A+ 90+ gold, S 100+ rainbow. Medal (`GradeMedal`) gets

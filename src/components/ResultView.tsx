@@ -72,14 +72,14 @@ export function ResultView({ photo, imageUrl, result, isLastRound, onNext }: Pro
                 <CountUp to={finalScore} duration={1.2} separator="," />
               </p>
               <p className="mt-2 inline-block rounded-2xl bg-butter/40 px-3 py-1.5 text-sm font-semibold text-ink tabular-nums">
-                {pinpoint ? (
+                {baseScore.toFixed(1)} <span className="text-muted">×</span> {bonusPct}%
+                {pinpoint && (
                   <>
-                    ({(baseScore - PINPOINT_POINTS).toFixed(1)} + 🎯{PINPOINT_POINTS})
+                    {' '}
+                    <span className="text-muted">+</span> 🎯{PINPOINT_POINTS}
                   </>
-                ) : (
-                  baseScore.toFixed(1)
                 )}{' '}
-                <span className="text-muted">×</span> {bonusPct}% <span className="text-muted">=</span> {finalScore}
+                <span className="text-muted">=</span> {finalScore}
               </p>
             </div>
             {/* grade pops in once the count-up has settled */}
@@ -95,7 +95,7 @@ export function ResultView({ photo, imageUrl, result, isLastRound, onNext }: Pro
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.4, type: 'spring', stiffness: 420, damping: 14 }}
             >
-              🎯 Pinpoint! Under {PINPOINT_METERS} m: +{PINPOINT_POINTS}
+              🎯 Pinpoint! Within {PINPOINT_METERS} m: +{PINPOINT_POINTS}
             </motion.p>
           )}
           {noScoreReason && <p className="mt-3 rounded-xl bg-peach/25 px-3 py-2 text-sm font-semibold text-coral">⏰ {noScoreReason}</p>}

@@ -27,7 +27,7 @@ export function gradeTextColor(tone: GradeTone) {
 
 const RAINBOW = 'conic-gradient(from 0deg, #ff5f6d, #ffc371, #f9f871, #7ee8a2, #5fb8ff, #a47bff, #ff6fd8, #ff5f6d)'
 
-type Props = { info: GradeInfo; size?: 'sm' | 'lg'; className?: string }
+type Props = { info: GradeInfo; size?: 'xs' | 'sm' | 'lg'; className?: string }
 
 export function GradeMedal({ info, size = 'lg', className }: Props) {
   const reduce = useReducedMotion()
@@ -36,7 +36,7 @@ export function GradeMedal({ info, size = 'lg', className }: Props) {
   const p = PALETTE[tone]
   const big = size === 'lg'
   // Size grows with the grade: F is small and sad, S is large and grand.
-  const disc = (big ? 72 : 34) + tier * (big ? 9 : 2.5)
+  const disc = big ? 72 + tier * 9 : size === 'sm' ? 34 + tier * 2.5 : 24 + tier * 1.5
   const ribbons = [1, 0, 1, 2, 2, 3, 3][tier]
 
   const entrance = reduce

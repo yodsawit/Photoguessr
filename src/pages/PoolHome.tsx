@@ -8,6 +8,8 @@ import { gradeTextColor, GradeMedal } from '../components/GradeMedal'
 
 const formatWhen = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+const formatDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+const formatTime = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 
 type Props = {
   poolKey: string
@@ -61,15 +63,13 @@ export function PoolHome({ poolKey, onPlay, onLeave }: Props) {
         ) : (
           <div className="mt-5 space-y-3 text-left">
             <div className="grid grid-cols-3 gap-2 text-sm sm:gap-3">
-              <div className="rounded-2xl bg-cream px-3 py-2">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Photos</p>
-                <p className="text-2xl font-extrabold text-ink">{status.photoCount}</p>
-              </div>
+              <StatTile label="Photos" sub={status.photoCount === 1 ? 'photo' : 'photos'}>
+                <span className="text-2xl font-extrabold tabular-nums text-ink">{status.photoCount.toLocaleString('en-US')}</span>
+              </StatTile>
               <HighScoreTile highScore={status.highScore} />
-              <div className="rounded-2xl bg-cream px-3 py-2">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Auto-delete</p>
-                <p className="font-bold text-ink">{formatWhen(status.expiresAt)}</p>
-              </div>
+              <StatTile label="Auto-delete" sub={`at ${formatTime(status.expiresAt)}`}>
+                <span className="text-base leading-tight font-extrabold text-ink sm:text-lg">{formatDay(status.expiresAt)}</span>
+              </StatTile>
             </div>
 
             {status.empty ? (
@@ -110,26 +110,33 @@ export function PoolHome({ poolKey, onPlay, onLeave }: Props) {
   )
 }
 
+/** One stat: small label on top, value centred in the middle, small sub-line — same in every tile. */
+function StatTile({ label, sub, children }: { label: string; sub?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-[104px] flex-col items-center rounded-2xl bg-cream px-2 py-2.5 text-center">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-muted sm:text-[11px]">{label}</p>
+      <div className="flex flex-1 items-center justify-center gap-1">{children}</div>
+      <p className="h-4 text-[11px] font-semibold text-muted">{sub}</p>
+    </div>
+  )
+}
+
 /** Album high score (best finished game), shown in its grade colour. */
 function HighScoreTile({ highScore }: { highScore: HighScore | null }) {
   if (!highScore) {
     return (
-      <div className="rounded-2xl bg-cream px-3 py-2">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-muted">High score</p>
-        <p className="text-xs font-semibold text-muted">No games yet</p>
-      </div>
+      <StatTile label="High score" sub="play a game">
+        <span className="text-2xl font-extrabold text-sand">—</span>
+      </StatTile>
     )
   }
   const info = gameGrade(highScore.total, highScore.rounds)
   return (
-    <div className="rounded-2xl bg-cream px-3 py-2">
-      <p className="text-[11px] font-bold uppercase tracking-wide text-muted">High score</p>
-      <div className="flex items-center gap-1.5">
-        <span className="text-2xl font-extrabold tabular-nums" style={{ color: gradeTextColor(info.tone) }}>
-          {highScore.total.toLocaleString('en-US')}
-        </span>
-        <GradeMedal info={info} size="sm" className="origin-left scale-75" />
-      </div>
-    </div>
+    <StatTile label="High score" sub={`grade ${info.grade}`}>
+      <span className="text-2xl font-extrabold tabular-nums" style={{ color: gradeTextColor(info.tone) }}>
+        {highScore.total.toLocaleString('en-US')}
+      </span>
+      <GradeMedal info={info} size="xs" />
+    </StatTile>
   )
 }

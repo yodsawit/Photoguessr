@@ -88,7 +88,7 @@ describe('one key does everything', () => {
       body: JSON.stringify({ id: photoId, guess: { lat: 18.8018, lng: 98.9672 }, opened: [0], timedOut: false }),
     })
     const result = (await guess.json()) as { finalScore: number; answer: Record<string, unknown> }
-    expect(result.finalScore).toBe(117) // exact guess, 1 corner open: (100 + 10 pinpoint) x 106%
+    expect(result.finalScore).toBe(116) // exact guess, 1 corner open: 100 x 106% + 10 pinpoint
     expect(result.answer).toEqual({ lat: 18.8018, lng: 98.9672, takenAt: '2024-09-28T11:10:56+07:00', district: 'Mueang Chiang Mai', province: 'Chiang Mai' })
   })
 
@@ -223,15 +223,15 @@ describe('games and album high score', () => {
       return last!
     }
 
-    const good = await guessAll(0, 0) // exact, 1 corner: (100 + 10 pinpoint) x 106% = 117 each
-    expect(good.game).toMatchObject({ done: true, total: 234, rounds: 2, newHighScore: true, highScore: { total: 234 } })
-    expect(await status(key)).toMatchObject({ highScore: { total: 234, rounds: 2 } })
+    const good = await guessAll(0, 0) // exact, 1 corner: 100 x 106% + 10 pinpoint = 116 each
+    expect(good.game).toMatchObject({ done: true, total: 232, rounds: 2, newHighScore: true, highScore: { total: 232 } })
+    expect(await status(key)).toMatchObject({ highScore: { total: 232, rounds: 2 } })
 
     const worse = await guessAll(5, 50) // middle opened, 50 km off
     expect(worse.game?.done).toBe(true)
     expect(worse.game?.newHighScore).toBe(false)
-    expect(worse.game?.total).toBeLessThan(234)
-    expect(await status(key)).toMatchObject({ highScore: { total: 234 } })
+    expect(worse.game?.total).toBeLessThan(232)
+    expect(await status(key)).toMatchObject({ highScore: { total: 232 } })
   })
 
   it('counts each photo once per game and ignores foreign or unknown games', async () => {
